@@ -236,25 +236,54 @@ func (e *Evaluator) checkShellSpawn(cmd domain.Command) (bool, string) {
 	if !e.policy.RemoteAccess.BlockShellSpawn {
 		return false, ""
 	}
-	if cmd.Is("nc") || cmd.Is("ncat") {
-		for _, a := range cmd.Args {
-			if a == "-e" || a == "-c" || strings.HasPrefix(a, "--exec") {
-				return true, "remote_access.BlockShellSpawn: detected nc -e/-c/--exec"
-			}
+	if blocked, reason := e.checkNcatExec(cmd); blocked {
+		return true, reason
+	}
+	if blocked, reason := e.checkSocatExec(cmd); blocked {
+		return true, reason
+	}
+	if blocked, reason := e.checkInterpreterOneLiner(cmd); blocked {
+		return true, reason
+	}
+	return false, ""
+}
+
+// checkNcatExec flags `nc -e`, `nc -c`, `nc --exec`.
+func (e *Evaluator) checkNcatExec(cmd domain.Command) (bool, string) {
+	if !cmd.Is("nc") && !cmd.Is("ncat") {
+		return false, ""
+	}
+	for _, a := range cmd.Args {
+		if a == "-e" || a == "-c" || strings.HasPrefix(a, "--exec") {
+			return true, "remote_access.BlockShellSpawn: detected nc -e/-c/--exec"
 		}
 	}
-	if cmd.Is("socat") {
-		for _, a := range cmd.Args {
-			if strings.HasPrefix(a, "exec:") || strings.HasPrefix(a, "system:") {
-				return true, "remote_access.BlockShellSpawn: detected socat exec:/system:"
-			}
+	return false, ""
+}
+
+// checkSocatExec flags `socat exec:` or `socat system:`.
+func (e *Evaluator) checkSocatExec(cmd domain.Command) (bool, string) {
+	if !cmd.Is("socat") {
+		return false, ""
+	}
+	for _, a := range cmd.Args {
+		if strings.HasPrefix(a, "exec:") || strings.HasPrefix(a, "system:") {
+			return true, "remote_access.BlockShellSpawn: detected socat exec:/system:"
 		}
 	}
-	if cmd.Is("python") || cmd.Is("python2") || cmd.Is("python3") || cmd.Is("perl") || cmd.Is("ruby") {
-		for _, a := range cmd.Args {
-			if a == "-c" || a == "-e" {
-				return true, "remote_access.BlockShellSpawn: detected interpreter -c/-e"
-			}
+	return false, ""
+}
+
+// checkInterpreterOneLiner flags `python -c`, `perl -e`, `ruby -e`.
+func (e *Evaluator) checkInterpreterOneLiner(cmd domain.Command) (bool, string) {
+	switch cmd.Basename() {
+	case "python", "python2", "python3", "perl", "ruby":
+	default:
+		return false, ""
+	}
+	for _, a := range cmd.Args {
+		if a == "-c" || a == "-e" {
+			return true, "remote_access.BlockShellSpawn: detected interpreter -c/-e"
 		}
 	}
 	return false, ""
