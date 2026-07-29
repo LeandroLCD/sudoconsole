@@ -29,6 +29,11 @@ linters:
           - gosec
           - dupl
           - goconst
+      - path: test/integration/
+        linters:
+          - errcheck
+          - gosec
+          - unused
   settings:
     gocyclo:
       min-complexity: 15
@@ -56,13 +61,8 @@ formatters:
     - goimports
   settings:
     goimports:
-      local-prefixes: github.com/LeandroLCD/sudoconsole
+      local-prefixes: ["github.com/LeandroLCD/sudoconsole"]
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - dist
-    - vendor
-    - bin
-    - test/integration
