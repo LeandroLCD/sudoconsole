@@ -2,7 +2,6 @@ run:
   timeout: 5m
   tests: true
   modules-download-mode: readonly
-  skip-use-defaults-for-directives: [version]
 
 linters:
   disable-all: true

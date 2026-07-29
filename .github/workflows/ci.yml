@@ -27,14 +27,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
-          cache: true
-
-      - name: Download modules
-        working-directory: ${{ matrix.arch == 'arm64' && matrix.os == 'macos-latest' && '/Users/runner/work' || '.' }}
-        run: go mod download
-
-      - name: Verify modules
-        run: go mod verify
+          cache: false
 
       - name: Build
         run: make build
