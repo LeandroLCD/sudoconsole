@@ -89,7 +89,7 @@ func (c *Credential) Zeroize() {
 	// Hint to the GC. We use unsafe.Pointer + explicit clobber because
 	// the Go runtime does not guarantee that runtime.KeepAlive alone
 	// will prevent copies from lingering in registers.
-	p := unsafe.Pointer(&c.bytes[0])
+	p := unsafe.Pointer(&c.bytes[0]) // #nosec G103 -- audited use for zeroing
 	for i := 0; i < len(c.bytes); i++ {
 		*(*byte)(unsafe.Add(p, i)) = 0
 	}

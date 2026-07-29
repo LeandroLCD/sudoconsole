@@ -101,7 +101,7 @@ const (
 	// CategoryRemoteAccess: ssh, scp, sftp, rsync, mosh, telnet.
 	CategoryRemoteAccess Category = "remote_access"
 	// CategoryCredentialExposure: ssh-keygen, visudo, gpg --export-secret-keys.
-	CategoryCredentialExposure Category = "credential_exposure" //nolint:gosec // G101: identifiers are tool names, not credentials
+	CategoryCredentialExposure Category = "credential_exposure" // #nosec G101 -- identifiers are tool names, not credentials
 	// CategoryShellSpawn: bash, sh, python, perl, ruby, nc -e, socat exec:.
 	CategoryShellSpawn Category = "shell_spawn"
 	// CategoryPersistence: crontab, systemctl enable (paired with reverse shell).
