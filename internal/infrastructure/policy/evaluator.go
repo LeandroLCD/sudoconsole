@@ -176,91 +176,172 @@ func (e *Evaluator) isAllowed(cmd domain.Command, cats []domain.Category) bool {
 // policy.CredentialExposure toggles for matching command line patterns.
 // Returns (blocked, reason).
 func (e *Evaluator) applyToggles(cmd domain.Command, _ domain.MatchResult) (bool, string) {
-	line := cmd.String()
+	checks := []func(domain.Command) (bool, string){
+		e.checkReverseTunnel,
+		e.checkPortForward,
+		e.checkSOCKSTunnel,
+		e.checkShellSpawn,
+		e.checkPasswdChange,
+		e.checkShadowEdit,
+		e.checkSudoersEdit,
+		e.checkSSHKeyExport,
+		e.checkSecretExport,
+	}
+	for _, c := range checks {
+		if c == nil {
+			continue
+		}
+		if blocked, reason := c(cmd); blocked {
+			return true, reason
+		}
+	}
+	return false, ""
+}
 
-	if e.policy.RemoteAccess.BlockReverseTunnels {
-		if strings.Contains(line, "-R ") || strings.Contains(line, "-R\t") {
-			return true, "remote_access.BlockReverseTunnels: detected ssh -R"
-		}
+// checkReverseTunnel detects `ssh -R` reverse port forwarding.
+func (e *Evaluator) checkReverseTunnel(cmd domain.Command) (bool, string) {
+	if !e.policy.RemoteAccess.BlockReverseTunnels {
+		return false, ""
 	}
-	if e.policy.RemoteAccess.BlockPortForward {
-		if strings.Contains(line, "-L ") || strings.Contains(line, "-L\t") {
-			return true, "remote_access.BlockPortForward: detected ssh -L"
-		}
+	if lineContainsFlag(cmd.String(), "-R") {
+		return true, "remote_access.BlockReverseTunnels: detected ssh -R"
 	}
-	if e.policy.RemoteAccess.BlockTunnels {
-		if strings.Contains(line, "-D ") || strings.Contains(line, "-D\t") {
-			return true, "remote_access.BlockTunnels: detected ssh -D (SOCKS)"
-		}
-	}
-	if e.policy.RemoteAccess.BlockShellSpawn {
-		// Toggles for any shell-spawn category match.
-		shell := []string{"bash", "sh", "zsh", "fish", "ksh", "csh", "tcsh", "dash"}
-		if cmd.Is("nc") || cmd.Is("ncat") {
-			for _, a := range cmd.Args {
-				if a == "-e" || a == "-c" || strings.HasPrefix(a, "--exec") {
-					return true, "remote_access.BlockShellSpawn: detected nc -e/-c/--exec"
-				}
-			}
-		}
-		if cmd.Is("socat") {
-			for _, a := range cmd.Args {
-				if strings.HasPrefix(a, "exec:") || strings.HasPrefix(a, "system:") {
-					return true, "remote_access.BlockShellSpawn: detected socat exec:/system:"
-				}
-			}
-		}
-		if cmd.Is("python") || cmd.Is("python2") || cmd.Is("python3") || cmd.Is("perl") || cmd.Is("ruby") {
-			for _, a := range cmd.Args {
-				if a == "-c" {
-					return true, "remote_access.BlockShellSpawn: detected interpreter -c"
-				}
-			}
-		}
-		_ = shell
-	}
+	return false, ""
+}
 
-	if e.policy.CredentialExposure.BlockPasswdChange {
-		if cmd.Is("passwd") || cmd.Is("chpasswd") {
-			return true, "credential_exposure.BlockPasswdChange"
-		}
+// checkPortForward detects `ssh -L` local port forwarding.
+func (e *Evaluator) checkPortForward(cmd domain.Command) (bool, string) {
+	if !e.policy.RemoteAccess.BlockPortForward {
+		return false, ""
 	}
-	if e.policy.CredentialExposure.BlockShadowEdit {
-		if strings.Contains(line, "/etc/shadow") && (cmd.Is("tee") || cmd.Is("cp") || cmd.Is("mv") || cmd.Is("cat") || cmd.Is("dd")) {
-			return true, "credential_exposure.BlockShadowEdit"
-		}
+	if lineContainsFlag(cmd.String(), "-L") {
+		return true, "remote_access.BlockPortForward: detected ssh -L"
 	}
-	if e.policy.CredentialExposure.BlockSudoersEdit {
-		if strings.Contains(line, "/etc/sudoers") && (cmd.Is("tee") || cmd.Is("cp") || cmd.Is("mv") || cmd.Is("cat") || cmd.Is("visudo")) {
-			return true, "credential_exposure.BlockSudoersEdit"
-		}
+	return false, ""
+}
+
+// checkSOCKSTunnel detects `ssh -D` dynamic SOCKS proxy.
+func (e *Evaluator) checkSOCKSTunnel(cmd domain.Command) (bool, string) {
+	if !e.policy.RemoteAccess.BlockTunnels {
+		return false, ""
 	}
-	if e.policy.CredentialExposure.BlockSSHKeyExport {
-		if cmd.Is("ssh-keygen") {
-			return true, "credential_exposure.BlockSSHKeyExport"
-		}
+	if lineContainsFlag(cmd.String(), "-D") {
+		return true, "remote_access.BlockTunnels: detected ssh -D (SOCKS)"
 	}
-	if e.policy.CredentialExposure.BlockSecretExport {
-		if cmd.Is("gpg") {
-			for _, a := range cmd.Args {
-				if strings.HasPrefix(a, "--export-secret") {
-					return true, "credential_exposure.BlockSecretExport: gpg --export-secret-keys"
-				}
+	return false, ""
+}
+
+// checkShellSpawn detects reverse-shell patterns: nc -e, socat exec:, python -c, etc.
+func (e *Evaluator) checkShellSpawn(cmd domain.Command) (bool, string) {
+	if !e.policy.RemoteAccess.BlockShellSpawn {
+		return false, ""
+	}
+	if cmd.Is("nc") || cmd.Is("ncat") {
+		for _, a := range cmd.Args {
+			if a == "-e" || a == "-c" || strings.HasPrefix(a, "--exec") {
+				return true, "remote_access.BlockShellSpawn: detected nc -e/-c/--exec"
 			}
 		}
-		if cmd.Is("openssl") {
-			for i, a := range cmd.Args {
-				if a == "rsa" || a == "dsa" || a == "ec" {
-					// Detect: openssl rsa -in key -out exported
-					_ = i
-					if hasExport(cmd.Args) {
-						return true, "credential_exposure.BlockSecretExport: openssl key export"
-					}
-				}
+	}
+	if cmd.Is("socat") {
+		for _, a := range cmd.Args {
+			if strings.HasPrefix(a, "exec:") || strings.HasPrefix(a, "system:") {
+				return true, "remote_access.BlockShellSpawn: detected socat exec:/system:"
+			}
+		}
+	}
+	if cmd.Is("python") || cmd.Is("python2") || cmd.Is("python3") || cmd.Is("perl") || cmd.Is("ruby") {
+		for _, a := range cmd.Args {
+			if a == "-c" || a == "-e" {
+				return true, "remote_access.BlockShellSpawn: detected interpreter -c/-e"
 			}
 		}
 	}
 	return false, ""
+}
+
+// checkPasswdChange blocks passwd/chpasswd invocations.
+func (e *Evaluator) checkPasswdChange(cmd domain.Command) (bool, string) {
+	if !e.policy.CredentialExposure.BlockPasswdChange {
+		return false, ""
+	}
+	if cmd.Is("passwd") || cmd.Is("chpasswd") {
+		return true, "credential_exposure.BlockPasswdChange"
+	}
+	return false, ""
+}
+
+// checkShadowEdit blocks writes/copies targeting /etc/shadow.
+func (e *Evaluator) checkShadowEdit(cmd domain.Command) (bool, string) {
+	if !e.policy.CredentialExposure.BlockShadowEdit {
+		return false, ""
+	}
+	if strings.Contains(cmd.String(), "/etc/shadow") && isPrivilegedCopy(cmd) {
+		return true, "credential_exposure.BlockShadowEdit"
+	}
+	return false, ""
+}
+
+// checkSudoersEdit blocks writes/copies targeting /etc/sudoers* paths.
+func (e *Evaluator) checkSudoersEdit(cmd domain.Command) (bool, string) {
+	if !e.policy.CredentialExposure.BlockSudoersEdit {
+		return false, ""
+	}
+	if strings.Contains(cmd.String(), "/etc/sudoers") && (isPrivilegedCopy(cmd) || cmd.Is("visudo")) {
+		return true, "credential_exposure.BlockSudoersEdit"
+	}
+	return false, ""
+}
+
+// checkSSHKeyExport blocks ssh-keygen invocations (which can export keys).
+func (e *Evaluator) checkSSHKeyExport(cmd domain.Command) (bool, string) {
+	if !e.policy.CredentialExposure.BlockSSHKeyExport {
+		return false, ""
+	}
+	if cmd.Is("ssh-keygen") {
+		return true, "credential_exposure.BlockSSHKeyExport"
+	}
+	return false, ""
+}
+
+// checkSecretExport blocks gpg --export-secret and openssl key export.
+func (e *Evaluator) checkSecretExport(cmd domain.Command) (bool, string) {
+	if !e.policy.CredentialExposure.BlockSecretExport {
+		return false, ""
+	}
+	if cmd.Is("gpg") {
+		for _, a := range cmd.Args {
+			if strings.HasPrefix(a, "--export-secret") {
+				return true, "credential_exposure.BlockSecretExport: gpg --export-secret-keys"
+			}
+		}
+	}
+	if cmd.Is("openssl") {
+		for _, a := range cmd.Args {
+			if (a == "rsa" || a == "dsa" || a == "ec") && hasExport(cmd.Args) {
+				return true, "credential_exposure.BlockSecretExport: openssl key export"
+			}
+		}
+	}
+	return false, ""
+}
+
+// lineContainsFlag returns true if the given flag appears as a separate
+// argument in the line ("-R " or "-R\t" ensures it isn't part of another
+// word, e.g. --Rfile).
+func lineContainsFlag(line, flag string) bool {
+	return strings.Contains(line, flag+" ") || strings.Contains(line, flag+"\t")
+}
+
+// isPrivilegedCopy returns true for commands that can write to privileged
+// paths (tee, cp, mv, cat, dd).
+func isPrivilegedCopy(cmd domain.Command) bool {
+	for _, b := range []string{"tee", "cp", "mv", "cat", "dd"} {
+		if cmd.Is(b) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasExport returns true if any of the args looks like a write/export flag.
