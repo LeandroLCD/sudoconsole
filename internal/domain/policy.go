@@ -220,8 +220,8 @@ type CredentialExposureConfig struct {
 
 // DefaultPolicy returns a safe default policy.
 //
-// Mode: blocklist. Remote access + credential exposure + shell spawn are
-// blocked. All entries are logged.
+// Mode: blocklist. Remote access + credential exposure + shell spawn + persistence
+// are blocked. All entries are logged.
 func DefaultPolicy() Policy {
 	return Policy{
 		Mode: PolicyModeBlocklist,
@@ -230,6 +230,7 @@ func DefaultPolicy() Policy {
 				CategoryRemoteAccess,
 				CategoryCredentialExposure,
 				CategoryShellSpawn,
+				CategoryPersistence,
 			},
 		},
 		Audit: AuditConfig{
