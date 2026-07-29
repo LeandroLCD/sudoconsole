@@ -47,7 +47,7 @@ func (g *Gateway) Allocate(ctx context.Context, argv []string, env []string) (do
 	if len(argv) == 0 {
 		return nil, errors.New("pty: empty argv")
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := exec.Command(argv[0], argv[1:]...) // #nosec G204 -- argv is validated by caller (usecase or sudo wrapper)
 	cmd.Env = append(os.Environ(), env...)
 
 	if g.DisableCoreDumps {
@@ -74,9 +74,10 @@ func (g *Gateway) Allocate(ctx context.Context, argv []string, env []string) (do
 	_ = tty.Close() // child now owns its end
 
 	s := &session{
-		ptmx: ptmx,
-		cmd:  cmd,
-		ctx:  ctx,
+		ptmx:  ptmx,
+		cmd:   cmd,
+		ctx:   ctx,
+		donec: make(chan struct{}),
 	}
 	go s.reaper()
 	return s, nil
@@ -133,7 +134,6 @@ type session struct {
 	ctx   context.Context
 	mu    sync.Mutex
 	donec chan struct{}
-	once  sync.Once
 }
 
 func (s *session) Read(p []byte) (int, error) {
@@ -178,6 +178,5 @@ func (s *session) Wait() (int, error) {
 // reaper waits for the child to exit and closes donec.
 func (s *session) reaper() {
 	_ = s.cmd.Wait()
-	s.once.Do(func() { s.donec = make(chan struct{}) })
 	close(s.donec)
 }

@@ -6,8 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 )
 
 // timestampPath returns the path to the sudo timestamp file for the
@@ -67,33 +65,3 @@ func parseTimestampName(encoded string) (string, error) {
 	}
 	return string(dec), nil
 }
-
-// ageInSeconds is a helper used by callers.
-func ageInSeconds(mtimeUnix, nowUnix int64) float64 {
-	return float64(nowUnix - mtimeUnix)
-}
-
-// itoa is a tiny helper to format integers without importing strconv.
-func itoa(i int64) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	var buf [20]byte
-	pos := len(buf)
-	for i > 0 {
-		pos--
-		buf[pos] = byte('0' + i%10)
-		i /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return strings.TrimSpace(string(buf[pos:]))
-}
-
-var _ = strconv.Itoa
