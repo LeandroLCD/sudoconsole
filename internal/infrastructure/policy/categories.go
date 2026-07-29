@@ -1,3 +1,5 @@
+// Package policy implements the runtime policy engine: binary category
+// registry, glob/regex matcher, and evaluator.
 package policy
 
 import "github.com/LeandroLCD/sudoconsole/internal/domain"

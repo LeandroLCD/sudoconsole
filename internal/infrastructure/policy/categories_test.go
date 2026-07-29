@@ -48,9 +48,8 @@ func TestCategoryRegistry_NilSafe(t *testing.T) {
 	if r.Len() != 0 {
 		t.Fatal("nil registry Len should be 0")
 	}
-	all := r.All()
-	if all != nil && len(all) != 0 {
-		t.Fatalf("nil registry All should be empty, got %v", all)
+	if len(r.All()) != 0 {
+		t.Fatalf("nil registry All should be empty")
 	}
 }
 
