@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -44,7 +43,7 @@ func (fakePolicy) ListCategories(context.Context) ([]CategoryEntry, error) {
 	return []CategoryEntry{{Binary: "ssh", Category: CategoryRemoteAccess, Risk: RiskCritical}}, nil
 }
 
-type fakeAudit struct{ buf bytes.Buffer }
+type fakeAudit struct{}
 
 func (a *fakeAudit) Log(context.Context, AuditEvent) error { return nil }
 func (a *fakeAudit) Close() error                          { return nil }
