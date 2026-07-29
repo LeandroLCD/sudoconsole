@@ -1,3 +1,5 @@
+// Package usecase contains application-layer use cases that orchestrate
+// the domain ports (PTY, sudo, cache, policy, audit, agent installer).
 package usecase
 
 import (

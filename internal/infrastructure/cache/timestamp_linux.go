@@ -49,19 +49,3 @@ func currentUsername() string {
 	}
 	return ""
 }
-
-// usernameBase64 is the encoded form used in the timestamp path. Exported
-// for tests.
-func usernameBase64(username string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(username))
-}
-
-// parseTimestampName extracts the username from a base64-encoded
-// timestamp filename. Used by tests and diagnostics.
-func parseTimestampName(encoded string) (string, error) {
-	dec, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", err
-	}
-	return string(dec), nil
-}

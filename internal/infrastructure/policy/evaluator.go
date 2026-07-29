@@ -391,7 +391,7 @@ func (e *Evaluator) ListCategories(_ context.Context) ([]domain.CategoryEntry, e
 	return e.registry.All(), nil
 }
 
-// Evaluate is a convenience wrapper for the domain.PolicyEvaluator signature.
+// EvaluateCtx is a convenience wrapper for the domain.PolicyEvaluator signature.
 func (e *Evaluator) EvaluateCtx(ctx context.Context, policy domain.Policy, cmd domain.Command) (domain.MatchResult, error) {
 	old := e.policy
 	e.policy = policy

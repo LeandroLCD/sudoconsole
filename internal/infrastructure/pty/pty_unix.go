@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync"
 	"syscall"
 
 	"github.com/LeandroLCD/sudoconsole/internal/domain"
+
 	"github.com/creack/pty"
 )
 
@@ -56,7 +56,7 @@ func (g *Gateway) Allocate(ctx context.Context, argv []string, env []string) (do
 
 	ptmx, tty, err := pty.Open()
 	if err != nil {
-		return nil, fmt.Errorf("%w: pty.Open: %v", domain.ErrPTYFailed, err)
+		return nil, fmt.Errorf("%w: pty.Open: %w", domain.ErrPTYFailed, err)
 	}
 
 	// Initial window size.
@@ -95,9 +95,9 @@ func (g *Gateway) ReadSecret(ctx context.Context, prompt string) ([]byte, error)
 	// Use the controlling terminal directly.
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
-		return nil, fmt.Errorf("%w: open /dev/tty: %v", domain.ErrPTYFailed, err)
+		return nil, fmt.Errorf("%w: open /dev/tty: %w", domain.ErrPTYFailed, err)
 	}
-	defer tty.Close()
+	defer func() { _ = tty.Close() }()
 
 	// Print prompt to stderr.
 	if _, err := os.Stderr.WriteString(prompt); err != nil {
@@ -132,7 +132,6 @@ type session struct {
 	ptmx  *os.File
 	cmd   *exec.Cmd
 	ctx   context.Context
-	mu    sync.Mutex
 	donec chan struct{}
 }
 

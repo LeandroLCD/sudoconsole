@@ -87,4 +87,4 @@ func (r *Repository) Refresh(_ context.Context, cfg domain.CacheConfig) error {
 }
 
 // timeNow is a package-level variable so tests can override it.
-var timeNow = func() time.Time { return time.Now() }
+var timeNow = time.Now

@@ -43,14 +43,12 @@ func (g *Gateway) Authenticate(ctx context.Context, secret []byte) error {
 	if len(secret) == 0 {
 		return fmt.Errorf("%w: empty secret", domain.ErrAuthFailed)
 	}
-	argv := []string{"sudo", "-S", "-p", "", "-v", ""}
-	// argv[5] is a placeholder; sudo ignores extra args after -v.
-	argv = []string{"sudo", "-S", "-p", "", "-v"}
+	argv := []string{"sudo", "-S", "-p", "", "-v"}
 	sess, err := g.pty.Allocate(ctx, argv, nil)
 	if err != nil {
 		return fmt.Errorf("auth: allocate pty: %w", err)
 	}
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	// Write the password followed by newline. sudo reads until \n.
 	go func() {
@@ -72,7 +70,7 @@ func (g *Gateway) Authenticate(ctx context.Context, secret []byte) error {
 	select {
 	case err := <-done:
 		if err != nil {
-			return fmt.Errorf("%w: sudo -v failed: %v", domain.ErrAuthFailed, err)
+			return fmt.Errorf("%w: sudo -v failed: %w", domain.ErrAuthFailed, err)
 		}
 		return nil
 	case <-ctx.Done():
@@ -91,7 +89,7 @@ func (g *Gateway) Execute(ctx context.Context, cmd domain.Command) (domain.SudoR
 	if err != nil {
 		return domain.SudoResult{}, fmt.Errorf("exec: allocate pty: %w", err)
 	}
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	// Capture stdout/stderr separately by wrapping the PTY in a
 	// demultiplexer. sudo writes to either depending on message type.

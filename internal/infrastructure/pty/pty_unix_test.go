@@ -4,6 +4,7 @@ package pty
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -152,7 +153,7 @@ func TestSession_WriteRead(t *testing.T) {
 // errIsPTY reports whether err wraps domain.ErrPTYFailed.
 func errIsPTY(err error) bool {
 	for err != nil {
-		if err == domain.ErrPTYFailed {
+		if errors.Is(err, domain.ErrPTYFailed) {
 			return true
 		}
 		type unwrap interface{ Unwrap() error }
