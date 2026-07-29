@@ -1,0 +1,63 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+  skip-use-defaults-for-directives: [version]
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # unchecked errors
+    - govet         # standard vet
+    - staticcheck   # advanced checks
+    - gosec         # security issues
+    - revive        # golint replacement
+    - gocyclo       # cyclomatic complexity (max 15)
+    - misspell      # spelling
+    - gofmt         # formatting
+    - goimports     # import ordering
+    - ineffassign   # ineffectual assignments
+    - unused        # unused code
+    - bodyclose     # HTTP body close
+    - errorlint     # error wrapping
+    - gocritic      # opinionated checks
+    - thelper       # test helpers
+    - tparallel     # parallel test detection
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  gosec:
+    excludes:
+      - G104 # unhandled errors in test files
+  revive:
+    rules:
+      - name: var-naming
+      - name: package-comments
+      - name: indent-error-flow
+      - name: error-strings
+      - name: error-naming
+      - name: error-return
+      - name: exported
+      - name: time-naming
+      - name: context-as-argument
+      - name: context-keys-type
+  goimports:
+    local-prefixes: github.com/LeandroLCD/sudoconsole
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - gosec
+        - dupl
+        - goconst
+  exclude-dirs:
+    - dist
+    - vendor
+    - bin
+    - test/integration
+  max-issues-per-linter: 0
+  max-same-issues: 0
