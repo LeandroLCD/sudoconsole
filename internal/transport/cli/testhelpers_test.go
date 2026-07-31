@@ -13,10 +13,11 @@ import (
 func stubApp(_ *testing.T) *App {
 	fmt, _ := NewFormatter(FormatHuman, false)
 	return &App{
-		Config:    domain.DefaultConfig(),
-		Audit:     audit.NoopLogger{},
-		Formatter: fmt,
-		Logger:    NewLogger(io.Discard, LogSilent),
-		Now:       func() string { return "2026-01-01T00:00:00Z" },
+		Config:        domain.DefaultConfig(),
+		Audit:         audit.NoopLogger{},
+		AgentDetector: nil,
+		Formatter:     fmt,
+		Logger:        NewLogger(io.Discard, LogSilent),
+		Now:           func() string { return "2026-01-01T00:00:00Z" },
 	}
 }

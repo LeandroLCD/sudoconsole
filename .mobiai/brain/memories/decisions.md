@@ -196,3 +196,32 @@ not from argv.
 
 ### Files
 - internal/infrastructure/audit/audit.go
+
+## M7: agent detector uses parallel probes with 2s budget
+
+- id: m7-agent-detector-uses-parallel-probes-with-2s-budget-20260731-134524
+- type: architecture_decision
+- status: active
+- platform: shared
+- area: agent_detector
+- date: 2026-07-31
+
+## Decision
+`agent.Detector.Detect` uses `golang.org/x/sync/errgroup` to probe every
+supported CLI agent in parallel with a hard 2-second deadline. Each
+per-agent probe has its own 500 ms version-flag timeout. A single
+failing probe (binary missing, version flag unsupported) does not abort
+the scan; the result simply omits that kind.
+
+The detector matches an agent if EITHER its binary is on PATH OR its
+config dir exists under `$HOME`. This handles npm/pip installs that
+land on non-standard PATHs but still drop a `.config/<name>` dir.
+
+## Files
+- `internal/infrastructure/agent/detector.go` (Specs, Detector,
+  lookupBinary, lookupConfigDir, lookupVersion)
+- `internal/infrastructure/agent/detector_test.go` (8 tests with
+  `testing/fstest.MapFS` + injectable PathLayout)
+
+### Files
+- internal/infrastructure/agent/detector.go
