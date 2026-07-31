@@ -31,7 +31,18 @@ type Evaluator struct {
 // NewEvaluator constructs an evaluator with the given policy.
 //
 // Patterns are compiled eagerly; an invalid pattern returns an error.
+// The policy is stored on the struct and is the value consulted by
+// Evaluate(ctx, cmd). Callers that need per-call policy overrides
+// should use EvaluatePolicy(ctx, policy, cmd) (which satisfies the
+// domain.PolicyEvaluator interface) or NewEvaluator + a struct that
+// updates the field.
 func NewEvaluator(p domain.Policy) (*Evaluator, error) {
+	return NewEvaluatorWithRegistry(p, DefaultCategoryRegistry())
+}
+
+// NewEvaluatorWithRegistry allows injecting a custom registry (used by
+// tests to override the built-in categories).
+func NewEvaluatorWithRegistry(p domain.Policy, reg *CategoryRegistry) (*Evaluator, error) {
 	b, err := Compile(p.Blocked.Patterns)
 	if err != nil {
 		return nil, fmt.Errorf("blocked patterns: %w", err)
@@ -44,27 +55,31 @@ func NewEvaluator(p domain.Policy) (*Evaluator, error) {
 		return nil, errors.New("matcher construction returned nil")
 	}
 	return &Evaluator{
-		registry:     DefaultCategoryRegistry(),
+		registry:     reg,
 		policy:       p,
 		blockedExtra: b,
 		allowedExtra: a,
 	}, nil
 }
 
-// NewEvaluatorWithRegistry allows injecting a custom registry (used by tests
-// to override the built-in categories).
-func NewEvaluatorWithRegistry(p domain.Policy, reg *CategoryRegistry) (*Evaluator, error) {
-	e, err := NewEvaluator(p)
-	if err != nil {
-		return nil, err
+// Evaluate satisfies domain.PolicyEvaluator. Callers may pass a fresh
+// policy on every call; the struct's stored policy is temporarily
+// replaced for the duration of the call. Tests that want to use the
+// stored policy without touching the interface can call
+// EvaluateStored.
+func (e *Evaluator) Evaluate(ctx context.Context, policy domain.Policy, cmd domain.Command) (domain.MatchResult, error) {
+	if e == nil {
+		return domain.MatchResult{}, errors.New("evaluator is nil")
 	}
-	if reg != nil {
-		e.registry = reg
-	}
-	return e, nil
+	old := e.policy
+	e.policy = policy
+	defer func() { e.policy = old }()
+	return e.evaluate(ctx, cmd)
 }
 
-// Evaluate returns a MatchResult for the given command.
+// EvaluateStored returns a MatchResult for the given command using
+// the policy supplied to NewEvaluator. Used by tests that do not need
+// to override the policy per call.
 //
 // Algorithm:
 //  1. Always: apply explicit category block (regardless of mode)
@@ -74,7 +89,13 @@ func NewEvaluatorWithRegistry(p domain.Policy, reg *CategoryRegistry) (*Evaluato
 //     - Blocklist: default-allow → most commands pass
 //     - Allowlist: default-deny → only explicitly allowed commands pass
 //     - Audit: default-allow but log everything
-func (e *Evaluator) Evaluate(_ context.Context, cmd domain.Command) (domain.MatchResult, error) {
+func (e *Evaluator) EvaluateStored(ctx context.Context, cmd domain.Command) (domain.MatchResult, error) {
+	return e.evaluate(ctx, cmd)
+}
+
+// evaluate is the internal worker used by both Evaluate and
+// EvaluateStored.
+func (e *Evaluator) evaluate(_ context.Context, cmd domain.Command) (domain.MatchResult, error) {
 	result := domain.MatchResult{
 		EvaluatedAt: time.Now(),
 		Decision:    domain.DecisionAllow,
@@ -389,12 +410,4 @@ func (e *Evaluator) ListCategories(_ context.Context) ([]domain.CategoryEntry, e
 		return nil, nil
 	}
 	return e.registry.All(), nil
-}
-
-// EvaluateCtx is a convenience wrapper for the domain.PolicyEvaluator signature.
-func (e *Evaluator) EvaluateCtx(ctx context.Context, policy domain.Policy, cmd domain.Command) (domain.MatchResult, error) {
-	old := e.policy
-	e.policy = policy
-	defer func() { e.policy = old }()
-	return e.Evaluate(ctx, cmd)
 }

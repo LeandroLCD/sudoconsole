@@ -13,7 +13,7 @@ import (
 )
 
 func TestRootCmd_Help(t *testing.T) {
-	cmd := NewRootCmd("test", "abc1234", "now")
+	cmd := NewRootCmd(stubApp(t), "test", "abc1234", "now")
 	cmd.SetArgs([]string{"--help"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -30,7 +30,7 @@ func TestRootCmd_Help(t *testing.T) {
 }
 
 func TestRootCmd_Version(t *testing.T) {
-	cmd := NewRootCmd("9.9.9", "deadbeef", "1970-01-01")
+	cmd := NewRootCmd(stubApp(t), "9.9.9", "deadbeef", "1970-01-01")
 	cmd.SetArgs([]string{"version"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -46,7 +46,7 @@ func TestRootCmd_Version(t *testing.T) {
 
 func TestConfigCmd_Path(t *testing.T) {
 	dir := t.TempDir()
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{"--config", filepath.Join(dir, "missing.toml"), "config", "path"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -61,7 +61,7 @@ func TestConfigCmd_Path(t *testing.T) {
 
 func TestConfigCmd_Show_Defaults(t *testing.T) {
 	dir := t.TempDir()
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{"--config", filepath.Join(dir, "missing.toml"), "config", "show"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -83,7 +83,7 @@ func TestConfigCmd_Show_Overrides(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(partialTOMLForTest()), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{
 		"--config", cfgPath,
 		"--cache-timeout", "1200",
@@ -110,7 +110,7 @@ func TestConfigCmd_Show_InvalidTOML(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("not = valid = toml =="), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{"--config", cfgPath, "config", "show"})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
@@ -130,7 +130,7 @@ func TestConfigCmd_Show_InvalidCacheValue(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("[cache]\ntimeout_seconds = 10\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{"--config", cfgPath, "config", "show"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -150,7 +150,7 @@ func TestConfigCmd_Validate_OK(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte("[cache]\ntimeout_seconds = 600\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := NewRootCmd("v", "c", "d")
+	cmd := NewRootCmd(stubApp(t), "v", "c", "d")
 	cmd.SetArgs([]string{"--config", cfgPath, "config", "validate"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)

@@ -6,21 +6,18 @@
 package cli
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 )
 
 // Options are the runtime knobs shared by every subcommand. They are
 // populated from CLI flags and (later) from the user's config file.
-//
-// The zero value is a usable default; callers may construct Options
-// directly in tests.
 type Options struct {
-	// ConfigPath overrides the location of the TOML config file. An
-	// empty string means "use the platform default".
+	// ConfigPath overrides the location of the TOML config file.
 	ConfigPath string
 
-	// CacheTimeoutSeconds overrides domain.CacheConfig.TimeoutSeconds
-	// from the CLI. Zero means "use the config file / built-in default".
+	// CacheTimeoutSeconds overrides domain.CacheConfig.TimeoutSeconds.
 	CacheTimeoutSeconds int
 
 	// Format overrides domain.OutputConfig.Format ("human" or "json").
@@ -30,10 +27,9 @@ type Options struct {
 	LogLevel string
 }
 
-// NewRootCmd builds the top-level cobra command. It accepts a version
-// string so the binary can inject its build-time version without
-// creating an import cycle on package main.
-func NewRootCmd(version, commit, buildDate string) *cobra.Command {
+// NewRootCmd builds the top-level cobra command. It accepts a pre-built
+// App (composition root) and the build-time version metadata.
+func NewRootCmd(app *App, version, commit, buildDate string) *cobra.Command {
 	opts := &Options{}
 	cmd := &cobra.Command{
 		Use:   "sudoconsole",
@@ -53,7 +49,16 @@ blocks remote-access and credential-exposure commands by default.`,
 	cmd.PersistentFlags().StringVar(&opts.LogLevel, "log-level", "",
 		"log level: silent, error, warn, info, debug (overrides config file)")
 
-	cmd.AddCommand(newVersionCmd(version, commit, buildDate))
+	cmd.AddCommand(newVersionCmd(app, version, commit, buildDate))
 	cmd.AddCommand(newConfigCmd(opts))
+	cmd.AddCommand(newAuthCmd(app))
+	cmd.AddCommand(newCheckCmd(app))
+	cmd.AddCommand(newExecCmd(app))
 	return cmd
+}
+
+// Now is the default timestamp provider used by every result struct.
+// It returns the current time formatted as RFC3339Nano.
+func Now() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
 }
