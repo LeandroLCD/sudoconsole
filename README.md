@@ -14,9 +14,9 @@ It also enforces a **security policy** that blocks remote-access and credential-
 
 ## Status
 
-🚧 **Bootstrap (M0)** — structure only. Subcommands are wired in subsequent milestones.
+🚧 **Config (M4)** — TOML config loader, path resolution, validation, and CLI flag overrides are landed. Subcommands `auth`/`check`/`exec` are wired in M5.
 
-See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M0-bootstrap.md`](plans/M0-bootstrap.md) for the current iteration.
+See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M4-config.md`](plans/M4-config.md) for the current iteration.
 
 ## Quickstart (not yet functional)
 
