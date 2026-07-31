@@ -17,7 +17,9 @@ package main
 
 import (
 	"fmt"
-	"runtime"
+	"os"
+
+	"github.com/LeandroLCD/sudoconsole/internal/transport/cli"
 )
 
 // Version info. Injected at build time via -ldflags.
@@ -28,11 +30,9 @@ var (
 )
 
 func main() {
-	fmt.Printf("sudoconsole %s\n", version)
-	fmt.Printf("  commit:     %s\n", commit)
-	fmt.Printf("  built:      %s\n", buildDate)
-	fmt.Printf("  go version: %s\n", runtime.Version())
-	fmt.Printf("  os/arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Println()
-	fmt.Println("This is a bootstrap build. Subcommands will be wired in M5.")
+	root := cli.NewRootCmd(version, commit, buildDate)
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 }

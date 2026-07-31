@@ -1,0 +1,3 @@
+# Minimal config fixture that only overrides cache timeout.
+[cache]
+timeout_seconds = 1800
