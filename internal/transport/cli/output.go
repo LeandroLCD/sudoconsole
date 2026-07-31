@@ -79,6 +79,8 @@ func (h *humanFormatter) Print(w io.Writer, v any) error {
 		return printAuditTail(bw, m, h.color)
 	case *DetectResult:
 		return printDetect(bw, m, h.color)
+	case *InstallResult:
+		return printInstall(bw, m, h.color)
 	default:
 		return fmt.Errorf("human formatter: unsupported value %T", v)
 	}
@@ -214,6 +216,31 @@ func printDetect(w *bufio.Writer, r *DetectResult, c bool) error {
 		if a.Version != "" {
 			_, _ = fmt.Fprintf(w, "    version:  %s\n", a.Version)
 		}
+	}
+	return nil
+}
+
+func printInstall(w *bufio.Writer, r *InstallResult, c bool) error {
+	g := color.New(color.FgGreen)
+	r2 := color.New(color.FgRed)
+	if c {
+		g.EnableColor()
+		r2.EnableColor()
+	}
+	if len(r.Installed) > 0 {
+		_, _ = fmt.Fprintf(w, "%s %d installed\n", g.Sprint("✓"), len(r.Installed))
+		for _, o := range r.Installed {
+			_, _ = fmt.Fprintf(w, "  %s\n", o.Name)
+		}
+	}
+	if len(r.Failed) > 0 {
+		_, _ = fmt.Fprintf(w, "%s %d failed\n", r2.Sprint("✗"), len(r.Failed))
+		for _, e := range r.Failed {
+			_, _ = fmt.Fprintf(w, "  %s: %s\n", e.Kind, e.Error)
+		}
+	}
+	if len(r.Installed) == 0 && len(r.Failed) == 0 {
+		_, _ = fmt.Fprintln(w, "no changes")
 	}
 	return nil
 }
