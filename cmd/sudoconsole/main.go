@@ -26,6 +26,7 @@ import (
 	"syscall"
 
 	"github.com/LeandroLCD/sudoconsole/internal/domain"
+	"github.com/LeandroLCD/sudoconsole/internal/infrastructure/agent"
 	"github.com/LeandroLCD/sudoconsole/internal/infrastructure/audit"
 	"github.com/LeandroLCD/sudoconsole/internal/infrastructure/cache"
 	"github.com/LeandroLCD/sudoconsole/internal/infrastructure/config"
@@ -102,14 +103,15 @@ func run() error {
 	logger := cli.NewLogger(io.Discard, logLevel)
 
 	app := &cli.App{
-		Config:     cfg,
-		Gateway:    sudoGw,
-		Repository: repo,
-		Evaluator:  eval,
-		Audit:      aud,
-		Logger:     logger,
-		Formatter:  fmtImpl,
-		Now:        cli.Now,
+		Config:        cfg,
+		Gateway:       sudoGw,
+		Repository:    repo,
+		Evaluator:     eval,
+		Audit:         aud,
+		AgentDetector: agent.NewDetector(),
+		Logger:        logger,
+		Formatter:     fmtImpl,
+		Now:           cli.Now,
 	}
 
 	// Wire the auth prompt through the PTY gateway so the password is

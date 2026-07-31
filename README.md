@@ -14,9 +14,9 @@ It also enforces a **security policy** that blocks remote-access and credential-
 
 ## Status
 
-🚧 **Audit logger (M6)** — JSONL audit log with timestamp/size rotation, host/user/session enrichment, secret redaction, and `sudoconsole audit tail`.
+🚧 **CLI agent detector (M7)** — `sudoconsole detect` scans the host for supported CLI agents (Kilo, Claude Code, Gemini, Aider, Codex, Copilot) in parallel with a 2-second budget.
 
-See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M6-audit.md`](plans/M6-audit.md) for the current iteration.
+See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M7-agent-detector.md`](plans/M7-agent-detector.md) for the current iteration.
 
 ## Quickstart (functional in M5)
 

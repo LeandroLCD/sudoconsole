@@ -31,6 +31,9 @@ type App struct {
 	// Audit records every decision and outcome.
 	Audit domain.AuditLogger
 
+	// AgentDetector scans the host for installed CLI agents.
+	AgentDetector domain.AgentDetector
+
 	// Logger is the structured logger for the CLI.
 	Logger *Logger
 

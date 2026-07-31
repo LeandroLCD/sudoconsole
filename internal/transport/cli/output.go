@@ -77,6 +77,8 @@ func (h *humanFormatter) Print(w io.Writer, v any) error {
 		return printVersion(bw, m, h.color)
 	case *AuditTailResult:
 		return printAuditTail(bw, m, h.color)
+	case *DetectResult:
+		return printDetect(bw, m, h.color)
 	default:
 		return fmt.Errorf("human formatter: unsupported value %T", v)
 	}
@@ -186,6 +188,31 @@ func printAuditTail(w *bufio.Writer, r *AuditTailResult, c bool) error {
 		_, _ = fmt.Fprintf(w, "  %s  %s  %s\n", e.Time, dc.Sprint(e.Decision), e.Command)
 		if e.Redacted {
 			_, _ = fmt.Fprintln(w, "       [redacted]")
+		}
+	}
+	return nil
+}
+
+func printDetect(w *bufio.Writer, r *DetectResult, c bool) error {
+	g := color.New(color.FgGreen)
+	if c {
+		g.EnableColor()
+	}
+	if len(r.Detected) == 0 {
+		_, _ = fmt.Fprintln(w, "no supported agents found")
+		return nil
+	}
+	_, _ = fmt.Fprintf(w, "%s %d agent(s) detected:\n", g.Sprint("•"), len(r.Detected))
+	for _, a := range r.Detected {
+		_, _ = fmt.Fprintf(w, "  %-8s  %s\n", a.Kind, a.Name)
+		if a.BinaryPath != "" {
+			_, _ = fmt.Fprintf(w, "    binary:   %s\n", a.BinaryPath)
+		}
+		if a.ConfigDir != "" {
+			_, _ = fmt.Fprintf(w, "    config:   %s\n", a.ConfigDir)
+		}
+		if a.Version != "" {
+			_, _ = fmt.Fprintf(w, "    version:  %s\n", a.Version)
 		}
 	}
 	return nil
