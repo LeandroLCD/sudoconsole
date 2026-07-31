@@ -14,17 +14,30 @@ It also enforces a **security policy** that blocks remote-access and credential-
 
 ## Status
 
-🚧 **Config (M4)** — TOML config loader, path resolution, validation, and CLI flag overrides are landed. Subcommands `auth`/`check`/`exec` are wired in M5.
+🚧 **CLI core (M5)** — `sudoconsole auth|check|exec|version|config` are wired end-to-end with policy enforcement, audit logging and human/JSON output.
 
-See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M4-config.md`](plans/M4-config.md) for the current iteration.
+See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M5-cli-core.md`](plans/M5-cli-core.md) for the current iteration.
 
-## Quickstart (not yet functional)
+## Quickstart (functional in M5)
 
 ```bash
 git clone https://github.com/LeandroLCD/sudoconsole
 cd sudoconsole
 make build
-./bin/sudoconsole version
+
+# prime the sudo cache (prompts for the password on a TTY, never echoed)
+./bin/sudoconsole auth
+
+# inspect cache status
+./bin/sudoconsole check         # human
+./bin/sudoconsole --format json check
+
+# run a privileged command under the policy
+./bin/sudoconsole exec apt update
+./bin/sudoconsole --format json exec systemctl restart nginx
+
+# blocked by default
+./bin/sudoconsole exec ssh user@host   # exit 64
 ```
 
 ## Roadmap
