@@ -14,9 +14,9 @@ It also enforces a **security policy** that blocks remote-access and credential-
 
 ## Status
 
-🚧 **CLI core (M5)** — `sudoconsole auth|check|exec|version|config` are wired end-to-end with policy enforcement, audit logging and human/JSON output.
+🚧 **Audit logger (M6)** — JSONL audit log with timestamp/size rotation, host/user/session enrichment, secret redaction, and `sudoconsole audit tail`.
 
-See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M5-cli-core.md`](plans/M5-cli-core.md) for the current iteration.
+See [`plans/00-master.md`](plans/00-master.md) for the full roadmap and [`plans/M6-audit.md`](plans/M6-audit.md) for the current iteration.
 
 ## Quickstart (functional in M5)
 

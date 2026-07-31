@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/LeandroLCD/sudoconsole/internal/domain"
@@ -56,14 +57,13 @@ func run() error {
 	defer cancel()
 
 	// Load config (CLI flags will overlay the file in cmd flags).
-	store := config.NewAt("")
-	if env := os.Getenv("SUDOCONSOLE_CONFIG"); env != "" {
-		store = config.NewAt(env)
-	}
+	cfgPath := resolveConfigPath()
+	store := config.NewAt(cfgPath)
 	cfg, err := store.Load(ctx)
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
+	applyFlagOverrides(&cfg)
 
 	// Wire infrastructure adapters.
 	ptyGw := pty.NewGateway()
@@ -79,6 +79,7 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("audit: %w", err)
 		}
+		fileAud.SetPolicyHash(audit.HashPolicy(cfg.Policy))
 		aud = fileAud
 	} else {
 		aud = audit.NoopLogger{}
@@ -130,6 +131,69 @@ var isColorOn = func(_ *os.File) bool {
 		return false
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+// resolveConfigPath inspects os.Args and the SUDOCONSOLE_CONFIG env
+// var for the --config flag value. Returns "" to use the platform
+// default.
+func resolveConfigPath() string {
+	if env := os.Getenv("SUDOCONSOLE_CONFIG"); env != "" {
+		return env
+	}
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--config" && i+1 < len(args):
+			return args[i+1]
+		case a == "-config" && i+1 < len(args):
+			return args[i+1]
+		case strings.HasPrefix(a, "--config="):
+			return strings.TrimPrefix(a, "--config=")
+		case strings.HasPrefix(a, "-config="):
+			return strings.TrimPrefix(a, "-config=")
+		}
+	}
+	return ""
+}
+
+// applyFlagOverrides reads the persistent flags directly from os.Args
+// and layers them on top of cfg. Empty/zero values are ignored so the
+// underlying config stays intact.
+func applyFlagOverrides(cfg *domain.Config) {
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--cache-timeout" && i+1 < len(args):
+			if v, err := strconvAtoi(args[i+1]); err == nil && v > 0 {
+				cfg.Cache.TimeoutSeconds = v
+			}
+		case strings.HasPrefix(a, "--cache-timeout="):
+			if v, err := strconvAtoi(strings.TrimPrefix(a, "--cache-timeout=")); err == nil && v > 0 {
+				cfg.Cache.TimeoutSeconds = v
+			}
+		case a == "--format" && i+1 < len(args):
+			cfg.Output.Format = args[i+1]
+		case strings.HasPrefix(a, "--format="):
+			cfg.Output.Format = strings.TrimPrefix(a, "--format=")
+		case a == "--log-level" && i+1 < len(args):
+			cfg.Output.LogLevel = args[i+1]
+		case strings.HasPrefix(a, "--log-level="):
+			cfg.Output.LogLevel = strings.TrimPrefix(a, "--log-level=")
+		}
+	}
+}
+
+func strconvAtoi(s string) (int, error) {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("not a number: %q", s)
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, nil
 }
 
 // versionInfo is exposed for the --version flag handling.
