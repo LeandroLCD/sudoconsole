@@ -136,6 +136,13 @@ type AuditEvent struct {
 	SessionID  string
 	OverrideBy string // empty if no override
 	Notes      string
+	// PolicyHash is a short identifier (e.g. first 8 hex chars of a
+	// sha256 over the effective policy) used to correlate an event
+	// with the policy version that produced it.
+	PolicyHash string
+	// Redacted indicates whether the recorded command line was
+	// scrubbed for secrets before persistence.
+	Redacted bool
 }
 
 // ConfigStore loads and saves the user's sudoconsole configuration.

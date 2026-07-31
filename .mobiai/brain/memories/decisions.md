@@ -134,3 +134,65 @@ hidden until M5 tried to wire the Evaluator into the App.
 ### Files
 - internal/infrastructure/policy/evaluator.go
 - internal/domain/ports.go
+
+## M6: audit log enriched with host/user/session/policy_hash
+
+- id: m6-audit-log-enriched-with-host-user-session-policy-hash-20260731-130413
+- type: architecture_decision
+- status: active
+- platform: shared
+- area: audit
+- date: 2026-07-31
+
+## Decision
+The audit `FileLogger` auto-populates `Timestamp`, `User`, `Hostname`,
+`SessionID` and `PolicyHash` on every event via a private `enrich()`
+helper. The `domain.AuditEvent` struct gained two new fields:
+`PolicyHash` and `Redacted`.
+
+## Reason
+- Callers (usecases) only need to populate Command / Decision /
+  Result / ExitCode / OverrideBy; the audit logger fills the rest.
+- Single source of truth: if any field is omitted it falls back to
+  the logger-detected value, never an empty string.
+- `PolicyHash` makes audit events correlatable with the policy version
+  that produced the decision.
+
+## Files
+- `internal/infrastructure/audit/audit.go` (`enrich`, `HashPolicy`,
+  `SetPolicyHash`, `meta` struct)
+- `internal/domain/ports.go` (`AuditEvent.PolicyHash`, `AuditEvent.Redacted`)
+
+### Files
+- internal/infrastructure/audit/audit.go
+- internal/domain/ports.go
+
+## M6: secrets redacted via RedactCommand heuristic
+
+- id: m6-secrets-redacted-via-redactcommand-heuristic-20260731-130413
+- type: architecture_decision
+- status: active
+- platform: shared
+- area: audit
+- date: 2026-07-31
+
+## Decision
+`RedactCommand(c)` mutates a copy of the command, replacing
+secret-looking arguments with `<REDACTED>` and setting
+`event.Redacted = true`. The function handles four patterns:
+
+1. Long flags: `--password=`, `--passwd=`, `--token=`, `--secret=`.
+2. Embedded markers: `password=`, `passwd=`, `token=`, `secret=`
+   inside any argument (e.g. curl --data-urlencode).
+3. KEY=VALUE environment-style assignments where KEY is sensitive.
+4. MySQL-style `-p<password>` flags.
+
+`sudo -S` is NOT redacted because the password is read from stdin,
+not from argv.
+
+## Files
+- `internal/infrastructure/audit/audit.go` (`RedactCommand`, helpers
+  `redactFlag`, `redactEmbedded`, `redactEnvVar`, `redactShortPassword`)
+
+### Files
+- internal/infrastructure/audit/audit.go

@@ -75,6 +75,8 @@ func (h *humanFormatter) Print(w io.Writer, v any) error {
 		return printExec(bw, m, h.color)
 	case *VersionInfo:
 		return printVersion(bw, m, h.color)
+	case *AuditTailResult:
+		return printAuditTail(bw, m, h.color)
 	default:
 		return fmt.Errorf("human formatter: unsupported value %T", v)
 	}
@@ -159,6 +161,33 @@ func printVersion(w *bufio.Writer, v *VersionInfo, c bool) error {
 	_, _ = fmt.Fprintf(w, "  built:   %s\n", v.BuildDate)
 	_, _ = fmt.Fprintf(w, "  go:      %s\n", v.GoVersion)
 	_, _ = fmt.Fprintf(w, "  os/arch: %s/%s\n", v.GOOS, v.GOARCH)
+	return nil
+}
+
+func printAuditTail(w *bufio.Writer, r *AuditTailResult, c bool) error {
+	cy := color.New(color.FgCyan)
+	if c {
+		cy.EnableColor()
+	}
+	_, _ = fmt.Fprintf(w, "%s audit log: %s (%d records)\n", cy.Sprint("•"), r.Path, r.Count)
+	for _, e := range r.Events {
+		dc := color.New(color.FgWhite)
+		switch e.Decision {
+		case "block":
+			dc = color.New(color.FgRed)
+		case "warn":
+			dc = color.New(color.FgYellow)
+		case "audit", "allow":
+			dc = color.New(color.FgGreen)
+		}
+		if c {
+			dc.EnableColor()
+		}
+		_, _ = fmt.Fprintf(w, "  %s  %s  %s\n", e.Time, dc.Sprint(e.Decision), e.Command)
+		if e.Redacted {
+			_, _ = fmt.Fprintln(w, "       [redacted]")
+		}
+	}
 	return nil
 }
 
