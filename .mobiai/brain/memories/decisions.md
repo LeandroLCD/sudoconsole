@@ -225,3 +225,38 @@ land on non-standard PATHs but still drop a `.config/<name>` dir.
 
 ### Files
 - internal/infrastructure/agent/detector.go
+
+## M8: 7 AgentInstaller adapters share marker-based idempotency
+
+- id: m8-7-agentinstaller-adapters-share-marker-based-idempotency-20260731-140646
+- type: architecture_decision
+- status: active
+- platform: shared
+- area: agent_installers
+- date: 2026-07-31
+
+## Decision
+All 7 adapters (Kilo, Claude, Gemini, Aider, Codex, Copilot, Generic)
+share a common `baseAdapter` and use a single marker convention
+`# sudoconsole-marker: <kind>` to scope install/uninstall.
+
+## Why
+- One marker → one idempotency check (`guardedInstall`).
+- One removal helper (`removeAliasBlock`) handles both YAML and
+  shell rc files because they share the `alias:` block structure.
+- Adapters differ only in WHERE they write and WHAT additional file
+  they patch (Claude writes settings.json; Copilot delegates to
+  `gh`).
+- Every adapter is contract-tested for: install, idempotent install,
+  uninstall, idempotent uninstall, force overwrite, dry-run.
+
+## Files
+- `internal/infrastructure/agent/base.go` (FS, baseAdapter, marker,
+  guardedInstall, writeAtomic, removeAliasBlock, removeIfPresent)
+- `internal/infrastructure/agent/{kilo,claude,gemini,aider,codex,copilot,generic}.go`
+- `internal/infrastructure/agent/registry.go` (All, NewForKind)
+- `docs/AGENTS.md` (per-adapter protocol)
+
+### Files
+- internal/infrastructure/agent/base.go
+- internal/infrastructure/agent/kilo.go
