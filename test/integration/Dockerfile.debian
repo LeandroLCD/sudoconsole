@@ -1,0 +1,29 @@
+# Integration test container for Debian 12 (bookworm).
+ARG BASE=debian:12
+FROM ${BASE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        sudo ca-certificates coreutils \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash sudotest \
+ && echo 'sudopwd:sudopwd' | chpasswd \
+ && useradd -m -s /bin/bash sudopwd \
+ && echo 'sudopwd:sudopwd' | chpasswd
+
+RUN printf '%s\n' \
+        'Defaults    env_keep += "SUDOCONSOLE_PASSWORD SUDOCONSOLE_CONFIG SUDOCONSOLE_AUDIT_LOG"' \
+        'Defaults    timestamp_timeout=0' \
+        'sudotest    ALL=(ALL) NOPASSWD: ALL' \
+        'sudopwd     ALL=(ALL) ALL' \
+        > /etc/sudoers.d/sudoconsole-test \
+ && chmod 0440 /etc/sudoers.d/sudoconsole-test
+
+USER sudotest
+WORKDIR /home/sudotest
+
+ENTRYPOINT ["/bin/integration.test"]
+CMD ["-test.v"]

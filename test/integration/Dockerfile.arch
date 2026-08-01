@@ -1,0 +1,26 @@
+# Integration test container for Arch Linux (latest).
+ARG BASE=archlinux:latest
+FROM ${BASE}
+
+RUN pacman -Sy --noconfirm --needed \
+        sudo ca-certificates coreutils \
+ && pacman -Scc --noconfirm
+
+RUN useradd -m -s /bin/bash sudotest \
+ && echo 'sudopwd:sudopwd' | chpasswd \
+ && useradd -m -s /bin/bash sudopwd \
+ && echo 'sudopwd:sudopwd' | chpasswd
+
+RUN printf '%s\n' \
+        'Defaults    env_keep += "SUDOCONSOLE_PASSWORD SUDOCONSOLE_CONFIG SUDOCONSOLE_AUDIT_LOG"' \
+        'Defaults    timestamp_timeout=0' \
+        'sudotest    ALL=(ALL) NOPASSWD: ALL' \
+        'sudopwd     ALL=(ALL) ALL' \
+        > /etc/sudoers.d/sudoconsole-test \
+ && chmod 0440 /etc/sudoers.d/sudoconsole-test
+
+USER sudotest
+WORKDIR /home/sudotest
+
+ENTRYPOINT ["/bin/integration.test"]
+CMD ["-test.v"]

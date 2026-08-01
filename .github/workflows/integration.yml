@@ -1,0 +1,118 @@
+name: integration
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+# Integration jobs use Docker; give them a wide timeout because the
+# matrix builds images and runs the suite four times.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build sudoconsole binary
+        run: make build
+
+      - name: Build integration test binary
+        run: go test -tags=integration -c -o bin/integration.test ./test/integration
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-artifacts
+          path: bin/
+
+  linux:
+    name: integration (${{ matrix.distro }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            dockerfile: test/integration/Dockerfile.ubuntu
+            tag: ubuntu-24.04
+          - distro: debian
+            dockerfile: test/integration/Dockerfile.debian
+            tag: debian-12
+          - distro: fedora
+            dockerfile: test/integration/Dockerfile.fedora
+            tag: fedora-41
+          - distro: arch
+            dockerfile: test/integration/Dockerfile.arch
+            tag: arch-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: integration-artifacts
+          path: bin/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v7
+
+      - name: Build test image
+        working-directory: bin
+        run: |
+          docker buildx build \
+            --file ../${{ matrix.dockerfile }} \
+            --build-arg BASE=${{ matrix.tag }} \
+            --tag integration-${{ matrix.distro }} \
+            --load \
+            .
+
+      - name: Run integration tests
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/bin:/bin:ro" \
+            -v "${{ github.workspace }}/bin:/usr/local/bin:ro" \
+            --privileged \
+            integration-${{ matrix.distro }} \
+            -test.timeout=4m
+
+  macos:
+    name: integration (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build sudoconsole binary
+        run: make build
+
+      # The macOS runner is a real macOS VM; the test suite itself
+      # creates its users via sudo when needed. We need admin
+      # privilege to manage users, but the standard GitHub-hosted
+      # runner grants that.
+      - name: Run integration tests
+        run: go test -tags=integration,darwin ./test/integration/... -count=1 -v
+        env:
+          SUDOCONSOLE_BIN: ${{ github.workspace }}/bin/sudoconsole
+          SUDOCONSOLE_TEST_PASSWORD: sudopwd
+        continue-on-error: false
