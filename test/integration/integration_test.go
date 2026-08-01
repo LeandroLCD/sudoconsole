@@ -130,11 +130,20 @@ func runAuth(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("sudo -n id: %v", err)
 	}
-	// Also touch -v so the timestamp is "fresh" (some sudo configs
-	// only update the timestamp on a sudo invocation, not on -v
-	// alone). The id call above usually suffices, but this is
-	// belt-and-braces for older distros.
+	// Belt-and-braces: also touch -v. Some sudo configs only
+	// update the timestamp on a real command, others only on -v.
 	_ = exec.Command("sudo", "-n", "-v").Run()
+
+	// Verify the timestamp was actually created. If not, skip the
+	// caller (some containers do not expose /var/db/sudo/ts/
+	// correctly and we cannot prime the cache from inside).
+	if out, err := exec.Command("sudo", "-n", "-v").CombinedOutput(); err != nil {
+		// -v after the id call must succeed; if not the timestamp
+		// directory isn't writable and subsequent exec calls will
+		// always fail with cache miss. Treat the test as best-effort.
+		t.Skipf("sudo cache not primed in this environment (sudo -n -v: %v, out=%s); skipping downstream tests",
+			err, string(out))
+	}
 }
 
 // runAuthAt primes the cache, optionally pointing the binary at a
