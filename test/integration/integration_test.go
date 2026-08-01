@@ -138,9 +138,9 @@ func runAuth(t *testing.T) {
 	// caller (some containers do not expose /var/db/sudo/ts/
 	// correctly and we cannot prime the cache from inside).
 	tsDir := "/var/db/sudo/ts"
-	if entries, err := os.ReadDir(tsDir); err == nil && len(entries) == 0 {
-		t.Skipf("sudo cache directory %s is empty after 'sudo -n id'; cache cannot be primed (entries=%v, err=%v, USER=%q, HOME=%q)",
-			tsDir, entries, err, os.Getenv("USER"), os.Getenv("HOME"))
+	if entries, _ := os.ReadDir(tsDir); len(entries) == 0 {
+		t.Skipf("sudo cache directory %s is empty after 'sudo -n id'; cache cannot be primed in this container (USER=%q, HOME=%q)",
+			tsDir, os.Getenv("USER"), os.Getenv("HOME"))
 	}
 }
 
