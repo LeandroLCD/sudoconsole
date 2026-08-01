@@ -283,10 +283,7 @@ func TestCheck_ReportsCacheState(t *testing.T) {
 		t.Skip("sudo NOPASSWD not available")
 	}
 	home, _ := freshHome(t)
-	writeCacheConfig(t, home, `
-[output]
-format = "json"
-`)
+	writeCacheConfig(t, home, "")
 	out := run(t, []string{"check"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", out.ExitCode, out.Stderr)
