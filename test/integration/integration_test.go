@@ -286,7 +286,12 @@ func TestCheck_ReportsCacheState(t *testing.T) {
 	writeCacheConfig(t, home, "")
 	out := run(t, []string{"check"}, nil)
 	if out.ExitCode != 0 {
-		t.Fatalf("exit=%d stderr=%s", out.ExitCode, out.Stderr)
+		t.Fatalf("exit=%d stderr=%s stdout=%s config=%s",
+			out.ExitCode, out.Stderr, out.Stdout,
+			mustReadFile(t, filepath.Join(home, ".config", "sudoconsole", "config.toml")))
+	}
+	if out.Stdout == "" {
+		t.Fatalf("empty stdout; stderr=%s", out.Stderr)
 	}
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out.Stdout), &got); err != nil {
@@ -521,4 +526,14 @@ func detectSafeCommand(t *testing.T) string {
 		}
 	}
 	return "true"
+}
+
+// mustReadFile returns the file contents or aborts the test.
+func mustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path) // #nosec G304 -- path is test-owned
+	if err != nil {
+		return "<read-failed: " + err.Error() + ">"
+	}
+	return string(b)
 }
