@@ -14,11 +14,11 @@ It also enforces a **security policy** that blocks remote-access and credential-
 
 ## Status
 
-🚧 **CLI agent adapters (M8)** — 7 adapters (Kilo, Claude Code, Gemini, Aider, Codex, Copilot, Generic) implementing the `AgentInstaller` contract. `sudoconsole install` / `sudoconsole uninstall` register/deregister with every detected agent idempotently.
+✅ **Install + Policy CLI (M9 + M10)** — `sudoconsole install` orchestrates agent adapters with confirm / dry-run / `--bin-dir` / `--policy-mode` flags. `sudoconsole policy {list,test,show,validate}` lets you inspect and lint the active policy. `exec --policy-override <reason>` records the reason in the audit log.
 
-See [`plans/00-master.md`](plans/00-master.md) for the full roadmap, [`plans/M8-agent-adapters.md`](plans/M8-agent-adapters.md) for the current iteration, and [`docs/AGENTS.md`](docs/AGENTS.md) for the adapter protocol.
+See [`plans/00-master.md`](plans/00-master.md) for the full roadmap, [`plans/M9-install.md`](plans/M9-install.md) / [`plans/M10-policy-cli.md`](plans/M10-policy-cli.md) for the latest iterations, and [`docs/AGENTS.md`](docs/AGENTS.md) for the adapter protocol.
 
-## Quickstart (functional in M5)
+## Quickstart
 
 ```bash
 git clone https://github.com/LeandroLCD/sudoconsole
@@ -44,10 +44,21 @@ make build
 
 | Version | Milestones | Status |
 |---------|------------|--------|
-| v0.1.0  | M0–M5   (bootstrap, domain, policy, infra, config, CLI) | in progress |
-| v0.2.0  | M6–M10  (audit, agent detector/adapters, install, policy CLI) | planned |
-| v0.3.0  | M11–M12 (integration tests, hardening) | planned |
+| v0.1.0  | M0–M5   (bootstrap, domain, policy, infra, config, CLI) | ✅ shipped |
+| v0.2.0  | M6–M10  (audit, agent detector/adapters, install, policy CLI) | ✅ shipped |
+| v0.3.0  | M11–M12 (integration tests, hardening) | 🚧 in progress |
 | v1.0.0  | M13–M14 (release pipeline, docs) | planned |
+
+## Integration tests
+
+The end-to-end suite under [`test/integration/`](test/integration) drives the compiled binary against a real sudo environment in a Docker matrix (Ubuntu 24.04, Debian 12, Fedora 41, Arch) plus a macOS host runner.
+
+```bash
+make build
+make test-integration   # runs the suite locally; requires sudo + docker
+```
+
+The CI workflow at [`.github/workflows/integration.yml`](.github/workflows/integration.yml) runs the full matrix on every PR.
 
 ## Architecture
 
