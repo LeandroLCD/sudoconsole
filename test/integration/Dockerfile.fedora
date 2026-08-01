@@ -13,7 +13,7 @@ RUN useradd -m -s /bin/bash sudotest \
 RUN printf '%s\n' \
         'Defaults    env_keep += "SUDOCONSOLE_PASSWORD SUDOCONSOLE_CONFIG SUDOCONSOLE_AUDIT_LOG HOME XDG_CONFIG_HOME XDG_DATA_HOME"' \
         'Defaults    !set_home' \
-        'Defaults    timestamp_timeout=0' \
+        'Defaults    timestamp_timeout=60' \
         'sudotest    ALL=(ALL) NOPASSWD: ALL' \
         'sudopwd     ALL=(ALL) ALL' \
         > /etc/sudoers.d/sudoconsole-test \

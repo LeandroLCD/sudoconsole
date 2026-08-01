@@ -22,14 +22,15 @@ RUN useradd -m -s /bin/bash sudotest \
  && echo 'sudopwd:sudopwd' | chpasswd
 
 # Sudoers: passwordless for sudotest, password required for sudopwd,
-# cache timeout forced to 0 so the "cache expired" test is deterministic.
+# cache timeout 60s (long enough for the suite, short enough that
+# the "expired" branch is reachable if a test wants it).
 # set_home is disabled and HOME is added to env_keep so `sudo -u sudopwd -E`
 # preserves the test-runner's $HOME (needed so /tmp/... config + audit
 # paths stay accessible to both users).
 RUN printf '%s\n' \
         'Defaults    env_keep += "SUDOCONSOLE_PASSWORD SUDOCONSOLE_CONFIG SUDOCONSOLE_AUDIT_LOG HOME XDG_CONFIG_HOME XDG_DATA_HOME"' \
         'Defaults    !set_home' \
-        'Defaults    timestamp_timeout=0' \
+        'Defaults    timestamp_timeout=60' \
         'sudotest    ALL=(ALL) NOPASSWD: ALL' \
         'sudopwd     ALL=(ALL) ALL' \
         > /etc/sudoers.d/sudoconsole-test \
