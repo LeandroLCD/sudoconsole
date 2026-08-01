@@ -69,18 +69,18 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build test image
-        working-directory: bin
         run: |
           docker buildx build \
-            --file ../${{ matrix.dockerfile }} \
+            --file ${{ matrix.dockerfile }} \
             --tag integration-${{ matrix.distro }} \
             --load \
+            --build-context artifacts=./bin \
             .
 
       - name: Run integration tests
         run: |
           docker run --rm \
-            -v "${{ github.workspace }}/bin:/run/it:ro" \
+            -e SUDOCONSOLE_BIN=/usr/local/bin/sudoconsole \
             --privileged \
             integration-${{ matrix.distro }} \
             -test.timeout=4m

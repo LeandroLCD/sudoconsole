@@ -1,8 +1,9 @@
 # Integration test container for Ubuntu 24.04.
 #
 # The host CI builds the test binary (`integration.test`) and the
-# sudoconsole binary outside the container and bind-mounts / copies
-# them in. This image only needs sudo + a test user.
+# sudoconsole binary outside the container and copies them in via the
+# `--build-context artifacts=./bin` option. This image only needs
+# sudo + a test user.
 ARG BASE=ubuntu:24.04
 FROM ${BASE}
 
@@ -30,12 +31,15 @@ RUN printf '%s\n' \
         > /etc/sudoers.d/sudoconsole-test \
  && chmod 0440 /etc/sudoers.d/sudoconsole-test
 
+# Copy the test binary + sudoconsole binary from the build context.
+# Names follow the artifacts produced by `make build` and the
+# `go test -c` step in the integration workflow.
+COPY --from=artifacts sudoconsole /usr/local/bin/sudoconsole
+COPY --from=artifacts integration.test /usr/local/bin/integration.test
+RUN chmod +x /usr/local/bin/sudoconsole /usr/local/bin/integration.test
+
 USER sudotest
 WORKDIR /home/sudotest
 
-# Default entrypoint runs the pre-built test binary. The CI workflow
-# bind-mounts the build artifact at /run/it so the test binary and
-# the sudoconsole binary are both available (with their exec bits
-# preserved).
-ENTRYPOINT ["/run/it/integration.test"]
+ENTRYPOINT ["/usr/local/bin/integration.test"]
 CMD ["-test.v"]

@@ -47,7 +47,7 @@ import (
 
 const (
 	defaultBinary     = "./bin/sudoconsole"
-	containerBinary   = "/run/it/sudoconsole"
+	containerBinary   = "/usr/local/bin/sudoconsole"
 	defaultPassword   = "sudopwd"
 	nopasswdUser      = "sudotest"
 	passwordUser      = "sudopwd"

@@ -21,8 +21,12 @@ RUN printf '%s\n' \
         > /etc/sudoers.d/sudoconsole-test \
  && chmod 0440 /etc/sudoers.d/sudoconsole-test
 
+COPY --from=artifacts sudoconsole /usr/local/bin/sudoconsole
+COPY --from=artifacts integration.test /usr/local/bin/integration.test
+RUN chmod +x /usr/local/bin/sudoconsole /usr/local/bin/integration.test
+
 USER sudotest
 WORKDIR /home/sudotest
 
-ENTRYPOINT ["/run/it/integration.test"]
+ENTRYPOINT ["/usr/local/bin/integration.test"]
 CMD ["-test.v"]
