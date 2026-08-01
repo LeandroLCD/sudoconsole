@@ -34,6 +34,8 @@ USER sudotest
 WORKDIR /home/sudotest
 
 # Default entrypoint runs the pre-built test binary. The CI workflow
-# bind-mounts `bin/integration.test` and `bin/sudoconsole` at runtime.
-ENTRYPOINT ["/bin/integration.test"]
+# bind-mounts the build artifact at /run/it so the test binary and
+# the sudoconsole binary are both available (with their exec bits
+# preserved).
+ENTRYPOINT ["/run/it/integration.test"]
 CMD ["-test.v"]

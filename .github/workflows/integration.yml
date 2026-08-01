@@ -80,8 +80,7 @@ jobs:
       - name: Run integration tests
         run: |
           docker run --rm \
-            -v "${{ github.workspace }}/bin:/bin:ro" \
-            -v "${{ github.workspace }}/bin:/usr/local/bin:ro" \
+            -v "${{ github.workspace }}/bin:/run/it:ro" \
             --privileged \
             integration-${{ matrix.distro }} \
             -test.timeout=4m
