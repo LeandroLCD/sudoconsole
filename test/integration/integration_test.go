@@ -146,7 +146,10 @@ func runAsPasswordUser(t *testing.T, args []string, extraEnv []string) runResult
 }
 
 // freshHome creates an isolated HOME directory for the current test
-// inside /tmp/sudoconsole-it (override via TEST_HOME_ROOT).
+// inside /tmp/sudoconsole-it (override via TEST_HOME_ROOT). The
+// parent and child directories are world-readable / executable so
+// the password-protected user (`sudopwd`) can traverse the path
+// when invoked via `sudo -u`.
 func freshHome(t *testing.T) (home string, cleanup func()) {
 	t.Helper()
 	root := os.Getenv("TEST_HOME_ROOT")
@@ -159,6 +162,9 @@ func freshHome(t *testing.T) (home string, cleanup func()) {
 	dir, err := os.MkdirTemp(root, strings.ReplaceAll(t.Name(), "/", "_")+"-")
 	if err != nil {
 		t.Fatalf("mkdirtemp: %v", err)
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatalf("chmod %s: %v", dir, err)
 	}
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
@@ -187,10 +193,12 @@ func writeConfig(t *testing.T, home, content string) {
 
 // writeCacheConfig writes a config with valid [cache] defaults and
 // the supplied policy/audit additions. Centralises the
-// cache.timeout_seconds plumbing that the validator requires.
+// cache.timeout_seconds plumbing that the validator requires. The
+// output format is forced to JSON so downstream assertions can
+// parse the result.
 func writeCacheConfig(t *testing.T, home, policyTOML string) {
 	t.Helper()
-	body := "[cache]\ntimeout_seconds = 900\nrefresh_before_seconds = 60\n\n" + policyTOML
+	body := "[cache]\ntimeout_seconds = 900\nrefresh_before_seconds = 60\n\n[output]\nformat = \"json\"\n\n" + policyTOML
 	writeConfig(t, home, body)
 }
 
@@ -274,8 +282,12 @@ func TestCheck_ReportsCacheState(t *testing.T) {
 	if !sudoNoPasswdAvailable() {
 		t.Skip("sudo NOPASSWD not available")
 	}
-	freshHome(t)
-	out := run(t, []string{"check", "--format", "json"}, nil)
+	home, _ := freshHome(t)
+	writeCacheConfig(t, home, `
+[output]
+format = "json"
+`)
+	out := run(t, []string{"check"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", out.ExitCode, out.Stderr)
 	}
@@ -444,8 +456,9 @@ func TestDetect_FindsKnownAgents(t *testing.T) {
 	if !sudoNoPasswdAvailable() {
 		t.Skip("sudo NOPASSWD not available")
 	}
-	freshHome(t)
-	out := run(t, []string{"detect", "--format", "json"}, nil)
+	home, _ := freshHome(t)
+	writeCacheConfig(t, home, "")
+	out := run(t, []string{"detect"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("detect exit=%d stderr=%s", out.ExitCode, out.Stderr)
 	}
@@ -480,8 +493,9 @@ func TestPolicyTest_ReportsBlocked(t *testing.T) {
 	if !sudoNoPasswdAvailable() {
 		t.Skip("sudo NOPASSWD not available")
 	}
-	freshHome(t)
-	out := run(t, []string{"policy", "test", "--format", "json", "ssh", "user@host"}, nil)
+	home, _ := freshHome(t)
+	writeCacheConfig(t, home, "")
+	out := run(t, []string{"policy", "test", "ssh", "user@host"}, nil)
 	if out.ExitCode != 64 {
 		t.Errorf("expected exit 64 (block); got %d stderr=%s", out.ExitCode, out.Stderr)
 	}
