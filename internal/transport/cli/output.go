@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/fatih/color"
+
+	"github.com/LeandroLCD/sudoconsole/internal/domain"
 )
 
 // Format selects the output style of the CLI.
@@ -81,6 +84,14 @@ func (h *humanFormatter) Print(w io.Writer, v any) error {
 		return printDetect(bw, m, h.color)
 	case *InstallResult:
 		return printInstall(bw, m, h.color)
+	case *PolicyListResult:
+		return printPolicyList(bw, m, h.color)
+	case *PolicyTestResult:
+		return printPolicyTest(bw, m, h.color)
+	case *PolicyShowResult:
+		return printPolicyShow(bw, m, h.color)
+	case *PolicyValidateResult:
+		return printPolicyValidate(bw, m, h.color)
 	default:
 		return fmt.Errorf("human formatter: unsupported value %T", v)
 	}
@@ -321,3 +332,123 @@ type VersionInfo struct {
 // ErrUnsupported is returned by formatters when they cannot encode the
 // supplied value.
 var ErrUnsupported = errors.New("formatter: unsupported value")
+
+// --- policy ------------------------------------------------------------
+
+func printPolicyList(w *bufio.Writer, r *PolicyListResult, c bool) error {
+	if len(r.Categories) == 0 {
+		_, _ = fmt.Fprintln(w, "no categories registered")
+		return nil
+	}
+	cy := color.New(color.FgCyan)
+	if c {
+		cy.EnableColor()
+	}
+	_, _ = fmt.Fprintf(w, "%s %d entries\n", cy.Sprint("•"), len(r.Categories))
+	for _, e := range r.Categories {
+		tag := "builtin"
+		if !e.BuiltIn {
+			tag = "custom"
+		}
+		_, _ = fmt.Fprintf(w, "  %-12s %-22s %-10s %s [%s]\n",
+			e.Binary, e.Category, e.Risk, e.Notes, tag)
+	}
+	return nil
+}
+
+func printPolicyTest(w *bufio.Writer, r *PolicyTestResult, c bool) error {
+	dc := color.New(color.FgWhite)
+	switch r.Decision {
+	case "block":
+		dc = color.New(color.FgRed)
+	case "warn":
+		dc = color.New(color.FgYellow)
+	case "audit", "allow":
+		dc = color.New(color.FgGreen)
+	}
+	if c {
+		dc.EnableColor()
+	}
+	_, _ = fmt.Fprintf(w, "%s  %s\n", dc.Sprint(r.Decision), r.Command)
+	if len(r.Reasons) > 0 {
+		for _, rs := range r.Reasons {
+			_, _ = fmt.Fprintf(w, "    reason: %s\n", rs)
+		}
+	}
+	if len(r.Categories) > 0 {
+		_, _ = fmt.Fprintf(w, "    categories: %s\n", joinStrings(r.Categories))
+	}
+	if r.Risk != "" {
+		_, _ = fmt.Fprintf(w, "    risk: %s\n", r.Risk)
+	}
+	return nil
+}
+
+func printPolicyShow(w *bufio.Writer, r *PolicyShowResult, c bool) error {
+	cy := color.New(color.FgCyan)
+	if c {
+		cy.EnableColor()
+	}
+	_, _ = fmt.Fprintf(w, "%s policy\n", cy.Sprint("•"))
+	_, _ = fmt.Fprintf(w, "  mode               = %s\n", r.Mode)
+	if len(r.BlockedCategories) > 0 {
+		_, _ = fmt.Fprintf(w, "  blocked.categories = %s\n", joinStrings(r.BlockedCategories))
+	}
+	if len(r.AllowedCategories) > 0 {
+		_, _ = fmt.Fprintf(w, "  allowed.categories = %s\n", joinStrings(r.AllowedCategories))
+	}
+	if len(r.BlockedCommands) > 0 {
+		_, _ = fmt.Fprintf(w, "  blocked.commands   = %v\n", r.BlockedCommands)
+	}
+	if len(r.AllowedCommands) > 0 {
+		_, _ = fmt.Fprintf(w, "  allowed.commands   = %v\n", r.AllowedCommands)
+	}
+	if len(r.BlockedPatterns) > 0 {
+		_, _ = fmt.Fprintf(w, "  blocked.patterns   = %v\n", r.BlockedPatterns)
+	}
+	if len(r.AllowedPatterns) > 0 {
+		_, _ = fmt.Fprintf(w, "  allowed.patterns   = %v\n", r.AllowedPatterns)
+	}
+	if len(r.ExtraPatterns) > 0 {
+		_, _ = fmt.Fprintf(w, "  extra_patterns     = %v\n", r.ExtraPatterns)
+	}
+	_, _ = fmt.Fprintf(w, "  remote_access      = %+v\n", r.RemoteAccess)
+	_, _ = fmt.Fprintf(w, "  credential_exposure= %+v\n", r.CredentialExposure)
+	_, _ = fmt.Fprintf(w, "  audit              = %+v\n", r.Audit)
+	return nil
+}
+
+func printPolicyValidate(w *bufio.Writer, r *PolicyValidateResult, c bool) error {
+	g := color.New(color.FgGreen)
+	r2 := color.New(color.FgRed)
+	if c {
+		g.EnableColor()
+		r2.EnableColor()
+	}
+	if r.Valid {
+		_, _ = fmt.Fprintf(w, "%s all patterns compile cleanly\n", g.Sprint("✓"))
+		return nil
+	}
+	_, _ = fmt.Fprintf(w, "%s invalid patterns:\n", r2.Sprint("✗"))
+	writeSection := func(label string, errs []domain.PatternError) {
+		for _, e := range errs {
+			_, _ = fmt.Fprintf(w, "  %s: %s\n  %s\n", label, e.Pattern, e.Reason)
+		}
+	}
+	writeSection("blocked", r.Blocked)
+	writeSection("allowed", r.Allowed)
+	writeSection("extras ", r.Extras)
+	return nil
+}
+
+// joinStrings renders a slice of stringy values as a comma-separated list.
+func joinStrings[T ~string](s []T) string {
+	if len(s) == 0 {
+		return ""
+	}
+	out := make([]string, len(s))
+	for i, v := range s {
+		out[i] = string(v)
+	}
+	return strings.Join(out, ", ")
+}

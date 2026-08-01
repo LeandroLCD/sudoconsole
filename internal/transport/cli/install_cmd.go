@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -246,19 +245,7 @@ func buildConfirm(w io.Writer, r io.Reader, yes bool) func(string) (bool, error)
 		if yes {
 			return true, nil
 		}
-		if w != nil {
-			_, _ = io.WriteString(w, msg)
-		}
-		scanner := bufio.NewScanner(r)
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				return false, err
-			}
-			// EOF: no answer.
-			return false, nil
-		}
-		ans := strings.TrimSpace(scanner.Text())
-		return strings.EqualFold(ans, "y") || strings.EqualFold(ans, "yes"), nil
+		return confirmPrompt(w, r, msg)
 	}
 }
 

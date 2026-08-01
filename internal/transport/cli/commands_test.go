@@ -230,7 +230,7 @@ func TestExecCmd_PolicyOverrideRunsCommand(t *testing.T) {
 	app.Gateway = gw
 	app.Repository = &fakeRepo{status: domain.CacheActive}
 	app.Audit = audit.NoopLogger{}
-	_, _, err := cmdFromArgs(app, []string{"exec", "--policy-override", "ssh", "user@host"})
+	_, _, err := cmdFromArgs(app, []string{"exec", "--policy-override", "debugging", "--yes", "ssh", "user@host"})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

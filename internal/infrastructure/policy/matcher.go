@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/LeandroLCD/sudoconsole/internal/domain"
 )
 
 // Matcher evaluates glob and regex patterns against a command line.
@@ -218,6 +220,41 @@ func ValidatePatterns(patterns []string) error {
 	return err
 }
 
+// ValidateEach compiles each pattern independently and returns a slice
+// describing every failure. The order matches the input. The slice is
+// nil when every pattern compiled cleanly.
+//
+// Used by `sudoconsole policy validate` so the user can see and fix
+// every offending pattern in one pass.
+func ValidateEach(patterns []string) []domain.PatternError {
+	if len(patterns) == 0 {
+		return nil
+	}
+	out := make([]domain.PatternError, 0)
+	for _, raw := range patterns {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			out = append(out, domain.PatternError{Pattern: raw, Reason: "empty pattern"})
+			continue
+		}
+		if strings.HasPrefix(trimmed, "re:") {
+			expr := strings.TrimPrefix(trimmed, "re:")
+			if _, err := safeCompile(expr); err != nil {
+				out = append(out, domain.PatternError{Pattern: raw, Reason: err.Error()})
+			}
+			continue
+		}
+		if _, err := path.Match(trimmed, ""); err != nil {
+			out = append(out, domain.PatternError{Pattern: raw, Reason: err.Error()})
+			continue
+		}
+		if _, err := globToRegexp(trimmed); err != nil {
+			out = append(out, domain.PatternError{Pattern: raw, Reason: err.Error()})
+		}
+	}
+	return out
+}
+
 // Len reports how many patterns are loaded.
 func (m *Matcher) Len() int {
 	if m == nil {
@@ -236,4 +273,17 @@ func (m *Matcher) Patterns() []string {
 		out[i] = c.raw
 	}
 	return out
+}
+
+// PatternValidator is the default domain.PolicyValidator. It delegates
+// to ValidateEach so the CLI sees every offending pattern in one pass.
+type PatternValidator struct{}
+
+// NewPatternValidator returns a validator backed by the package's
+// Compile / ReDoS heuristics.
+func NewPatternValidator() *PatternValidator { return &PatternValidator{} }
+
+// ValidatePatterns implements domain.PolicyValidator.
+func (PatternValidator) ValidatePatterns(patterns []string) []domain.PatternError {
+	return ValidateEach(patterns)
 }
