@@ -22,8 +22,9 @@ func requireMacOSRoot(t *testing.T) {
 	t.Helper()
 	// The macOS test runner must already be root or sudo-capable; we
 	// do not create extra users.
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-v")
-	cmd.Timeout = macOSTestTimeout
+	ctx, cancel := context.WithTimeout(context.Background(), macOSTestTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sudo", "-n", "-v")
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
