@@ -389,7 +389,15 @@ func TestExec_AllowsSafeCommand(t *testing.T) {
 	cmdLine := detectSafeCommand(t)
 	out := run(t, []string{"exec", cmdLine}, nil)
 	if out.ExitCode != 0 {
-		t.Fatalf("exec exit=%d stderr=%s stdout=%s", out.ExitCode, out.Stderr, out.Stdout)
+		tsDir := "/var/db/sudo/ts"
+		tsFiles, _ := os.ReadDir(tsDir)
+		names := make([]string, 0, len(tsFiles))
+		for _, f := range tsFiles {
+			names = append(names, f.Name())
+		}
+		t.Fatalf("exec exit=%d stderr=%s stdout=%s /var/db/sudo/ts=%v user=%s home=%s",
+			out.ExitCode, out.Stderr, out.Stdout,
+			names, os.Getenv("USER"), os.Getenv("HOME"))
 	}
 }
 
