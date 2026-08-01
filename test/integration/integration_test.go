@@ -348,10 +348,9 @@ func TestAuth_WrongPassword(t *testing.T) {
 	requireLinux(t)
 	home, _ := freshHome(t)
 	cfg := filepath.Join(home, ".config", "sudoconsole", "config.toml")
-	runAuthAsPasswordUser(t, "wrong-password-here", cfg)
-	// runAuthAsPasswordUser already expects a non-zero exit; we
-	// verify it here via a manual invocation so we can assert the
-	// exact exit code (auth-failed = 2).
+	// Verify the wrong-password exit code (auth-failed = 2). The
+	// earlier runAuthAsPasswordUser wrapper would t.Fatalf on any
+	// non-zero exit, so we run the command directly here.
 	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
 		binaryPath(t), "--config", cfg, "auth", "--no-tty")
 	cmd.Env = append(os.Environ(), passwordEnvar+"=wrong-password-here")
