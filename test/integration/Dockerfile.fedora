@@ -7,7 +7,6 @@ RUN dnf install -y --setopt=install_weak_deps=False \
  && dnf clean all
 
 RUN useradd -m -s /bin/bash sudotest \
- && echo 'sudopwd:sudopwd' | chpasswd \
  && useradd -m -s /bin/bash sudopwd \
  && echo 'sudopwd:sudopwd' | chpasswd
 

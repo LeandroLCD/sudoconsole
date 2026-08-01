@@ -14,10 +14,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Two test users:
-#   sudotest  — NOPASSWD sudoer for the common path.
+#   sudotest  — NOPASSWD sudoer for the common path (no password).
 #   sudopwd   — password-protected sudoer for the password-prompt test.
 RUN useradd -m -s /bin/bash sudotest \
- && echo 'sudopwd:sudopwd' | chpasswd \
  && useradd -m -s /bin/bash sudopwd \
  && echo 'sudopwd:sudopwd' | chpasswd
 

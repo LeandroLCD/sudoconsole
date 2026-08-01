@@ -7,7 +7,6 @@ RUN pacman -Sy --noconfirm --needed \
  && pacman -Scc --noconfirm
 
 RUN useradd -m -s /bin/bash sudotest \
- && echo 'sudopwd:sudopwd' | chpasswd \
  && useradd -m -s /bin/bash sudopwd \
  && echo 'sudopwd:sudopwd' | chpasswd
 

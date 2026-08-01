@@ -10,7 +10,6 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash sudotest \
- && echo 'sudopwd:sudopwd' | chpasswd \
  && useradd -m -s /bin/bash sudopwd \
  && echo 'sudopwd:sudopwd' | chpasswd
 
