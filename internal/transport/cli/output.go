@@ -223,14 +223,28 @@ func printDetect(w *bufio.Writer, r *DetectResult, c bool) error {
 func printInstall(w *bufio.Writer, r *InstallResult, c bool) error {
 	g := color.New(color.FgGreen)
 	r2 := color.New(color.FgRed)
+	y := color.New(color.FgYellow)
 	if c {
 		g.EnableColor()
 		r2.EnableColor()
+		y.EnableColor()
+	}
+	verb := "installed"
+	if r.Planned {
+		verb = "would install"
 	}
 	if len(r.Installed) > 0 {
-		_, _ = fmt.Fprintf(w, "%s %d installed\n", g.Sprint("✓"), len(r.Installed))
+		mark := g.Sprint("✓")
+		if r.Planned {
+			mark = y.Sprint("?")
+		}
+		_, _ = fmt.Fprintf(w, "%s %d %s\n", mark, len(r.Installed), verb)
 		for _, o := range r.Installed {
-			_, _ = fmt.Fprintf(w, "  %s\n", o.Name)
+			tag := ""
+			if o.DryRun {
+				tag = " (dry-run)"
+			}
+			_, _ = fmt.Fprintf(w, "  %s%s\n", o.Name, tag)
 		}
 	}
 	if len(r.Failed) > 0 {

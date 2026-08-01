@@ -23,6 +23,9 @@ var (
 	ErrAgentInstallFailed = errors.New("agent install failed")
 	// ErrInvalidCommand: command is malformed.
 	ErrInvalidCommand = errors.New("invalid command")
+	// ErrInvalidInput: generic input validation failure surfaced by
+	// use cases (missing --kind, ambiguous flags, etc.).
+	ErrInvalidInput = errors.New("invalid input")
 	// ErrInvalidCacheConfig: cache configuration is invalid.
 	ErrInvalidCacheConfig = errors.New("invalid cache config")
 	// ErrConfigNotFound: configuration file not found.
