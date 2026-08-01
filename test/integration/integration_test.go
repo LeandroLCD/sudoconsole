@@ -119,12 +119,29 @@ func run(t *testing.T, args []string, extraEnv []string) runResult {
 }
 
 // runAuth primes the sudo cache as the current (NOPASSWD) user by
-// running `sudoconsole auth --no-tty`. The gateway feeds the dummy
-// secret to `sudo -S -v` which succeeds because the user has
-// NOPASSWD in /etc/sudoers.
+// invoking `sudo -v` directly. Using the system `sudo` instead of
+// `sudoconsole auth` avoids the PTY dance and the --no-tty secret
+// dance on NOPASSWD users, which is timing-sensitive.
 func runAuth(t *testing.T) {
 	t.Helper()
-	cmd := exec.CommandContext(context.Background(), binaryPath(t), "auth", "--no-tty")
+	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-v")
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("sudo -v: %v", err)
+	}
+}
+
+// runAuthAt primes the cache, optionally pointing the binary at a
+// specific config file (the `--config` flag). Used for the
+// password-user path where the test runner's HOME is not preserved
+// through `sudo -u`.
+func runAuthAt(t *testing.T, configPath string) {
+	t.Helper()
+	args := []string{"auth", "--no-tty"}
+	if configPath != "" {
+		args = append([]string{"--config", configPath}, args...)
+	}
+	cmd := exec.CommandContext(context.Background(), binaryPath(t), args...)
 	cmd.Env = append(os.Environ(), passwordEnvar+"=dummy")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("auth setup: %v out=%s", err, string(out))
@@ -133,11 +150,15 @@ func runAuth(t *testing.T) {
 
 // runAuthAsPasswordUser primes the cache as the password-protected
 // user. Used only for tests that explicitly validate the password
-// path.
-func runAuthAsPasswordUser(t *testing.T, password string) {
+// path. The --config flag carries the test HOME config into the
+// other user's environment.
+func runAuthAsPasswordUser(t *testing.T, password, configPath string) {
 	t.Helper()
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
-		binaryPath(t), "auth", "--no-tty")
+	args := []string{"-n", "-u", passwordUser, "-E", binaryPath(t), "auth", "--no-tty"}
+	if configPath != "" {
+		args = append(args, "--config", configPath)
+	}
+	cmd := exec.CommandContext(context.Background(), "sudo", args...)
 	cmd.Env = append(os.Environ(), passwordEnvar+"="+password)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("auth setup: %v out=%s", err, string(out))
@@ -312,15 +333,22 @@ func TestAuth_Nopasswd(t *testing.T) {
 
 func TestAuth_WrongPassword(t *testing.T) {
 	requireLinux(t)
+	home, _ := freshHome(t)
+	cfg := filepath.Join(home, ".config", "sudoconsole", "config.toml")
+	runAuthAsPasswordUser(t, "wrong-password-here", cfg)
+	// runAuthAsPasswordUser already expects a non-zero exit; we
+	// verify it here via a manual invocation so we can assert the
+	// exact exit code (auth-failed = 2).
 	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
-		binaryPath(t), "auth", "--no-tty")
+		binaryPath(t), "--config", cfg, "auth", "--no-tty")
 	cmd.Env = append(os.Environ(), passwordEnvar+"=wrong-password-here")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err == nil {
-		t.Fatalf("expected auth to fail; stdout=%s stderr=%s", stdout.String(), stderr.String())
+		t.Fatalf("expected auth to fail; stdout=%s stderr=%s",
+			stdout.String(), stderr.String())
 	}
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
@@ -334,7 +362,9 @@ func TestAuth_WrongPassword(t *testing.T) {
 
 func TestAuth_RightPassword(t *testing.T) {
 	requireLinux(t)
-	runAuthAsPasswordUser(t, testPassword())
+	home, _ := freshHome(t)
+	cfg := filepath.Join(home, ".config", "sudoconsole", "config.toml")
+	runAuthAsPasswordUser(t, testPassword(), cfg)
 }
 
 func TestExec_AllowsSafeCommand(t *testing.T) {
