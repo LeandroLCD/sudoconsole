@@ -37,8 +37,11 @@ func NewGateway(p *pty.Gateway) *Gateway {
 // password prompt. The credentials are cached by sudo for the default
 // timestamp (5–15 min depending on configuration).
 //
-// Implementation: opens a PTY, starts `sudo -v -S` (or just `sudo -v`
-// with the secret on stdin) and feeds the secret after the prompt.
+// Implementation: opens a PTY, starts `sudo -v -S` and feeds the
+// secret after the prompt. The PTY is also drained so that
+// subsequent "Sorry, try again." prompts are detected — sudo's
+// default 3-attempt loop would otherwise leave us blocked on the
+// second read waiting for input that will never come.
 func (g *Gateway) Authenticate(ctx context.Context, secret []byte) error {
 	if len(secret) == 0 {
 		return fmt.Errorf("%w: empty secret", domain.ErrAuthFailed)
@@ -57,6 +60,33 @@ func (g *Gateway) Authenticate(ctx context.Context, secret []byte) error {
 		_, _ = sess.Write(append(secret, '\n'))
 	}()
 
+	// Drain the PTY so we can detect "Sorry, try again." prompts and
+	// exit early instead of waiting for sudo to finish its 3-attempt
+	// retry loop with no further input.
+	rejected := make(chan struct{}, 1)
+	go func() {
+		buf := make([]byte, 256)
+		var acc []byte
+		for {
+			n, rerr := sess.Read(buf)
+			if n > 0 {
+				acc = append(acc, buf[:n]...)
+				if bytes.Contains(acc, []byte("Sorry, try again")) ||
+					bytes.Contains(acc, []byte("incorrect password")) ||
+					bytes.Contains(acc, []byte("Authentication failed")) {
+					select {
+					case rejected <- struct{}{}:
+					default:
+					}
+					return
+				}
+			}
+			if rerr != nil {
+				return
+			}
+		}
+	}()
+
 	done := make(chan error, 1)
 	go func() {
 		_, werr := sess.Wait()
@@ -73,6 +103,9 @@ func (g *Gateway) Authenticate(ctx context.Context, secret []byte) error {
 			return fmt.Errorf("%w: sudo -v failed: %w", domain.ErrAuthFailed, err)
 		}
 		return nil
+	case <-rejected:
+		_ = sess.Close()
+		return fmt.Errorf("%w: password rejected by sudo", domain.ErrAuthFailed)
 	case <-ctx.Done():
 		return domain.ErrContextCancelled
 	}
