@@ -63,8 +63,6 @@ func binaryPath(t *testing.T) string {
 	if p := os.Getenv("SUDOCONSOLE_BIN"); p != "" {
 		return p
 	}
-	// Inside the Docker container the binary is bind-mounted at
-	// /usr/local/bin/sudoconsole (see .github/workflows/integration.yml).
 	if _, err := os.Stat(containerBinary); err == nil {
 		return containerBinary
 	}
@@ -87,15 +85,13 @@ func testPassword() string {
 // Test helpers
 // ---------------------------------------------------------------------------
 
-// runResult captures the outcome of a single binary invocation.
 type runResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
 }
 
-// run executes the sudoconsole binary with args + env. The PATH is
-// inherited so the binary can locate `sudo` / `id` etc.
+// run executes the sudoconsole binary with args + env.
 func run(t *testing.T, args []string, extraEnv []string) runResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
@@ -120,14 +116,16 @@ func run(t *testing.T, args []string, extraEnv []string) runResult {
 	return res
 }
 
-// sudoRun executes a command under sudo as the password-protected user.
-// Used only when we need to simulate a different user identity.
-func sudoRun(t *testing.T, args []string, password string) runResult {
+// runAsPasswordUser executes the binary as the password-protected
+// user (which has the right cache after a real auth). The caller is
+// expected to have already authenticated.
+func runAsPasswordUser(t *testing.T, args []string, extraEnv []string) runResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sudo", append([]string{"-n", "-u", passwordUser, "-E"}, args...)...)
-	cmd.Env = append(os.Environ(), "SUDOCONSOLE_PASSWORD="+password)
+	argv := append([]string{"-n", "-u", passwordUser, "-E", binaryPath(t)}, args...)
+	cmd := exec.CommandContext(ctx, "sudo", argv...)
+	cmd.Env = append(os.Environ(), extraEnv...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -142,17 +140,13 @@ func sudoRun(t *testing.T, args []string, password string) runResult {
 		res.ExitCode = exitErr.ExitCode()
 		return res
 	}
-	t.Fatalf("sudoRun %v: %v\nstdout: %s\nstderr: %s", args, err, stdout.String(), stderr.String())
+	t.Fatalf("runAsPasswordUser %v: %v\nstdout: %s\nstderr: %s", args, err,
+		stdout.String(), stderr.String())
 	return res
 }
 
-// freshHome creates an isolated HOME directory for the current test.
-// All sudoconsole invocations should use this as HOME so the audit
-// log and config file land in a predictable, per-test location.
-//
-// The directory lives inside the container under $TEST_HOME_ROOT
-// (defaults to /tmp/sudoconsole-it) so the host's t.TempDir (which
-// is only meaningful on the host) is never used as the runtime HOME.
+// freshHome creates an isolated HOME directory for the current test
+// inside /tmp/sudoconsole-it (override via TEST_HOME_ROOT).
 func freshHome(t *testing.T) (home string, cleanup func()) {
 	t.Helper()
 	root := os.Getenv("TEST_HOME_ROOT")
@@ -174,27 +168,38 @@ func freshHome(t *testing.T) (home string, cleanup func()) {
 	}
 }
 
-// writeConfig writes a sudoconsole TOML config to the user's
-// $XDG_CONFIG_HOME/sudoconsole/config.toml.
+// writeConfig writes a sudoconsole TOML config. The file is
+// world-readable so both `sudotest` and `sudopwd` (when invoked
+// through `sudo -u`) can load it. Mode 0600 + group=other would
+// fail the user-switch path.
 func writeConfig(t *testing.T, home, content string) {
 	t.Helper()
 	dir := filepath.Join(home, ".config", "sudoconsole")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(content), 0o600); err != nil {
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	t.Setenv(configPathEnvar, filepath.Join(dir, "config.toml"))
+	t.Setenv(configPathEnvar, path)
 }
 
-// auditLogPath returns the canonical audit log path for the test user.
-// The parent directory is created as a side-effect so the audit
-// logger (which does NOT MkdirAll itself) can open the file directly.
+// writeCacheConfig writes a config with valid [cache] defaults and
+// the supplied policy/audit additions. Centralises the
+// cache.timeout_seconds plumbing that the validator requires.
+func writeCacheConfig(t *testing.T, home, policyTOML string) {
+	t.Helper()
+	body := "[cache]\ntimeout_seconds = 900\nrefresh_before_seconds = 60\n\n" + policyTOML
+	writeConfig(t, home, body)
+}
+
+// auditLogPath returns the canonical audit log path. Creates the
+// parent directory because the audit logger does not MkdirAll.
 func auditLogPath(t *testing.T, home string) string {
 	t.Helper()
 	dir := filepath.Join(home, ".local", "share", "sudoconsole")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir audit dir: %v", err)
 	}
 	return filepath.Join(dir, "audit.log")
@@ -224,14 +229,16 @@ func readAuditLines(t *testing.T, path string) []map[string]any {
 	return out
 }
 
-// isRoot reports whether the current process has uid 0. CI runs the
-// test as the `sudotest` user, never as root, so this is purely a
-// safety guard.
+// sudoNoPasswdAvailable returns true when the current user can call
+// `sudo -n -v` without a password (the test rig must satisfy this).
+func sudoNoPasswdAvailable() bool {
+	cmd := exec.Command("sudo", "-n", "-v")
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
 func isRoot() bool { return os.Geteuid() == 0 }
 
-// requireLinux skips the test when the host kernel is not Linux. The
-// Docker matrix only ships Linux images; macOS has its own file
-// (macos_test.go) gated by `darwin`.
 func requireLinux(t *testing.T) {
 	t.Helper()
 	if runtime.GOOS != "linux" {
@@ -242,8 +249,6 @@ func requireLinux(t *testing.T) {
 	}
 }
 
-// logf is a small wrapper around t.Logf that prefixes every message
-// with [integration] so the matrix output is grep-friendly.
 func logf(t *testing.T, format string, args ...any) {
 	t.Helper()
 	t.Logf(integrationPrefix+" "+format, args...)
@@ -259,18 +264,17 @@ func TestSudoVersion(t *testing.T) {
 	if !strings.Contains(out.Stdout, "sudoconsole") {
 		t.Errorf("expected version banner; got %q", out.Stdout)
 	}
-	// Quick smoke test that sudo is callable too.
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-v") // #nosec G204 -- arg is constant
-	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
-		t.Skipf("sudo NOPASSWD not available in this environment: %v", err)
+	if !sudoNoPasswdAvailable() {
+		t.Skip("sudo NOPASSWD not available in this environment")
 	}
 }
 
 func TestCheck_ReportsCacheState(t *testing.T) {
 	requireLinux(t)
+	if !sudoNoPasswdAvailable() {
+		t.Skip("sudo NOPASSWD not available")
+	}
 	freshHome(t)
-
 	out := run(t, []string{"check", "--format", "json"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("exit=%d stderr=%s", out.ExitCode, out.Stderr)
@@ -283,51 +287,6 @@ func TestCheck_ReportsCacheState(t *testing.T) {
 		t.Errorf("missing active field; got %+v", got)
 	}
 	logf(t, "cache check OK: %+v", got)
-}
-
-func TestAuth_NopasswdUser(t *testing.T) {
-	requireLinux(t)
-	freshHome(t)
-	// sudo -n -v succeeds silently because sudotest has NOPASSWD.
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-v") // #nosec G204 -- fixed args
-	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
-		t.Skipf("NOPASSWD sudo unavailable: %v", err)
-	}
-	out := run(t, []string{"auth", "--no-tty"}, []string{passwordEnvar + "="})
-	if out.ExitCode != 0 {
-		t.Fatalf("auth exit=%d stderr=%s", out.ExitCode, out.Stderr)
-	}
-}
-
-func TestAuth_WrongPassword(t *testing.T) {
-	requireLinux(t)
-	if runtime.GOOS != "linux" {
-		t.Skip("requires linux")
-	}
-	freshHome(t)
-	// We can't run as sudopwd in-process, so we exec `sudo -u sudopwd -E
-	// sudoconsole auth --no-tty` with the wrong password. The test
-	// relies on the runner being sudotest who can invoke `sudo -u sudopwd`
-	// without a password (NOPASSWD ALL).
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
-		binaryPath(t), "auth", "--no-tty")
-	cmd.Env = append(os.Environ(), passwordEnvar+"=wrong-password-here")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err == nil {
-		t.Fatalf("expected auth to fail; stdout=%s stderr=%s", stdout.String(), stderr.String())
-	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("expected ExitError, got %v", err)
-	}
-	// sudoconsole auth returns exit 2 on auth failure (ErrAuthFailed).
-	if exitErr.ExitCode() != 2 {
-		t.Errorf("expected exit 2; got %d stderr=%s", exitErr.ExitCode(), stderr.String())
-	}
 }
 
 func TestAuth_RightPassword(t *testing.T) {
@@ -349,34 +308,70 @@ func TestAuth_RightPassword(t *testing.T) {
 	}
 }
 
-func TestExec_AllowsAptVersion(t *testing.T) {
+func TestAuth_WrongPassword(t *testing.T) {
 	requireLinux(t)
 	freshHome(t)
-	// apt-get --version is safe and returns 0 on every Debian-derived
-	// distro. On non-apt distros the test still runs `id` instead.
+	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
+		binaryPath(t), "auth", "--no-tty")
+	cmd.Env = append(os.Environ(), passwordEnvar+"=wrong-password-here")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err == nil {
+		t.Fatalf("expected auth to fail; stdout=%s stderr=%s", stdout.String(), stderr.String())
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected ExitError, got %v", err)
+	}
+	if exitErr.ExitCode() != 2 {
+		t.Errorf("expected exit 2 (auth failed); got %d stderr=%s",
+			exitErr.ExitCode(), stderr.String())
+	}
+}
+
+func TestExec_AllowsSafeCommand(t *testing.T) {
+	requireLinux(t)
+	freshHome(t)
+	// Chain: auth as sudopwd, then exec as sudopwd.
+	authCmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
+		binaryPath(t), "auth", "--no-tty")
+	authCmd.Env = append(os.Environ(), passwordEnvar+"="+testPassword())
+	if out, err := authCmd.CombinedOutput(); err != nil {
+		t.Fatalf("auth setup: %v out=%s", err, string(out))
+	}
 	cmdLine := detectSafeCommand(t)
-	out := run(t, []string{"exec", "--format", "json", cmdLine}, []string{passwordEnvar + "="})
+	out := runAsPasswordUser(t, []string{"exec", "--format", "json", cmdLine}, nil)
 	if out.ExitCode != 0 {
-		t.Fatalf("exec exit=%d stderr=%s", out.ExitCode, out.Stderr)
+		t.Fatalf("exec exit=%d stderr=%s stdout=%s", out.ExitCode, out.Stderr, out.Stdout)
 	}
 }
 
 func TestExec_BlocksSsh(t *testing.T) {
 	requireLinux(t)
 	freshHome(t)
-	out := run(t, []string{"exec", "ssh", "user@host"}, []string{passwordEnvar + "="})
-	if out.ExitCode != 64 {
-		t.Fatalf("expected exit 64 (policy block); got %d stderr=%s", out.ExitCode, out.Stderr)
+	// auth first so the policy decision is what produces the exit 64
+	// (not "cache expired").
+	authCmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
+		binaryPath(t), "auth", "--no-tty")
+	authCmd.Env = append(os.Environ(), passwordEnvar+"="+testPassword())
+	if out, err := authCmd.CombinedOutput(); err != nil {
+		t.Fatalf("auth setup: %v out=%s", err, string(out))
 	}
-	if !strings.Contains(out.Stderr+out.Stdout, "ssh") {
-		t.Errorf("output should mention ssh; got stdout=%q stderr=%q", out.Stdout, out.Stderr)
+	out := runAsPasswordUser(t, []string{"exec", "ssh", "user@host"}, nil)
+	if out.ExitCode != 64 {
+		t.Fatalf("expected exit 64 (policy block); got %d stderr=%s stdout=%s",
+			out.ExitCode, out.Stderr, out.Stdout)
 	}
 }
 
 func TestExec_OverrideRequiresConfirmOrYes(t *testing.T) {
 	requireLinux(t)
+	if !sudoNoPasswdAvailable() {
+		t.Skip("sudo NOPASSWD not available")
+	}
 	freshHome(t)
-	// No --yes, no stdin answer → must abort.
 	out := run(t, []string{"exec", "--policy-override", "integration-test", "ssh", "user@host"}, nil)
 	if out.ExitCode == 0 {
 		t.Errorf("expected non-zero exit when override rejected; got 0")
@@ -386,19 +381,19 @@ func TestExec_OverrideRequiresConfirmOrYes(t *testing.T) {
 func TestExec_OverrideRunsAndAudits(t *testing.T) {
 	requireLinux(t)
 	home, _ := freshHome(t)
-	writeConfig(t, home, `
-[output]
-format = "json"
-
+	writeCacheConfig(t, home, `
 [policy]
 audit = { log_file = "`+auditLogPath(t, home)+`", log_blocked = true, log_allowed = true, log_warned = true }
 `)
-	// --yes skips the interactive confirm; --policy-override <reason>
-	// records the reason on OverrideBy. We target `id` (always
-	// allowed) so the override path runs even though nothing was
-	// actually blocked — this exercises the audit plumbing.
-	out := run(t, []string{"exec", "--policy-override", "integration-test", "--yes",
-		"--format", "json", "id", "-u"}, []string{passwordEnvar + "="})
+	authCmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
+		binaryPath(t), "auth", "--no-tty")
+	authCmd.Env = append(os.Environ(), passwordEnvar+"="+testPassword())
+	if out, err := authCmd.CombinedOutput(); err != nil {
+		t.Fatalf("auth setup: %v out=%s", err, string(out))
+	}
+	out := runAsPasswordUser(t,
+		[]string{"exec", "--policy-override", "integration-test", "--yes",
+			"--format", "json", "id", "-u"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("exec exit=%d stderr=%s stdout=%s", out.ExitCode, out.Stderr, out.Stdout)
 	}
@@ -415,26 +410,29 @@ audit = { log_file = "`+auditLogPath(t, home)+`", log_blocked = true, log_allowe
 func TestAuditLog_OneEntryPerCommand(t *testing.T) {
 	requireLinux(t)
 	home, _ := freshHome(t)
-	writeConfig(t, home, `
-[output]
-format = "json"
-
+	writeCacheConfig(t, home, `
 [policy]
 audit = { log_file = "`+auditLogPath(t, home)+`", log_blocked = true, log_allowed = true }
 `)
+	// prime the cache once.
+	authCmd := exec.CommandContext(context.Background(), "sudo", "-n", "-u", passwordUser, "-E",
+		binaryPath(t), "auth", "--no-tty")
+	authCmd.Env = append(os.Environ(), passwordEnvar+"="+testPassword())
+	if out, err := authCmd.CombinedOutput(); err != nil {
+		t.Fatalf("auth setup: %v out=%s", err, string(out))
+	}
 	cmds := [][]string{
 		{"exec", "--yes", "--format", "json", "id"},
 		{"exec", "--yes", "--format", "json", "id", "-u"},
-		{"exec", "--format", "json", "ssh", "user@host"}, // expect block + audit entry
+		{"exec", "--format", "json", "ssh", "user@host"},
 	}
 	for _, c := range cmds {
-		_ = run(t, c, []string{passwordEnvar + "="})
+		_ = runAsPasswordUser(t, c, nil)
 	}
 	entries := readAuditLines(t, auditLogPath(t, home))
 	if len(entries) != len(cmds) {
 		t.Fatalf("expected %d audit entries; got %d", len(cmds), len(entries))
 	}
-	// Verify the blocked command was recorded as such.
 	last := entries[len(entries)-1]
 	if d, _ := last["decision"].(string); d != "block" {
 		t.Errorf("expected last decision=block; got %q (entry=%+v)", d, last)
@@ -443,6 +441,9 @@ audit = { log_file = "`+auditLogPath(t, home)+`", log_blocked = true, log_allowe
 
 func TestDetect_FindsKnownAgents(t *testing.T) {
 	requireLinux(t)
+	if !sudoNoPasswdAvailable() {
+		t.Skip("sudo NOPASSWD not available")
+	}
 	freshHome(t)
 	out := run(t, []string{"detect", "--format", "json"}, nil)
 	if out.ExitCode != 0 {
@@ -460,7 +461,7 @@ func TestDetect_FindsKnownAgents(t *testing.T) {
 func TestPolicyValidate_BadPatterns(t *testing.T) {
 	requireLinux(t)
 	home, _ := freshHome(t)
-	writeConfig(t, home, `
+	writeCacheConfig(t, home, `
 [policy]
 extra_patterns = ["re:(a+)+", "[bad", "ok-pattern"]
 `)
@@ -476,6 +477,9 @@ extra_patterns = ["re:(a+)+", "[bad", "ok-pattern"]
 
 func TestPolicyTest_ReportsBlocked(t *testing.T) {
 	requireLinux(t)
+	if !sudoNoPasswdAvailable() {
+		t.Skip("sudo NOPASSWD not available")
+	}
 	freshHome(t)
 	out := run(t, []string{"policy", "test", "--format", "json", "ssh", "user@host"}, nil)
 	if out.ExitCode != 64 {
@@ -492,20 +496,18 @@ func TestPolicyTest_ReportsBlocked(t *testing.T) {
 	}
 }
 
-// detectSafeCommand returns a benign sudo-safe command that succeeds
-// on every supported distro. `id` is POSIX; `-u` prints the numeric
-// uid which is universally available.
+// detectSafeCommand returns a benign command that is universally
+// available across the supported distros.
 func detectSafeCommand(t *testing.T) string {
 	t.Helper()
-	if _, err := exec.LookPath("apt-get"); err == nil {
-		return "apt-get --version"
+	candidates := []string{"apt-get", "dnf", "pacman", "id"}
+	for _, c := range candidates {
+		if _, err := exec.LookPath(c); err == nil {
+			if c == "id" {
+				return "id"
+			}
+			return c + " --version"
+		}
 	}
-	if _, err := exec.LookPath("dnf"); err == nil {
-		return "dnf --version"
-	}
-	if _, err := exec.LookPath("pacman"); err == nil {
-		return "pacman --version"
-	}
-	// POSIX fallback.
-	return "id"
+	return "true"
 }
