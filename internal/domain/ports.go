@@ -101,6 +101,30 @@ type PolicyEvaluator interface {
 	ListCategories(ctx context.Context) ([]CategoryEntry, error)
 }
 
+// PolicyValidator compiles the user-defined patterns of a Policy and
+// returns a per-pattern error slice. Implementations must reject ReDoS
+// vectors and invalid regex / glob syntax. An empty input returns an
+// empty slice and nil.
+type PolicyValidator interface {
+	ValidatePatterns(patterns []string) []PatternError
+}
+
+// PatternError describes one malformed pattern.
+type PatternError struct {
+	// Pattern is the offending raw string (with the "re:" prefix
+	// preserved for regex entries).
+	Pattern string
+	// Reason is a human-readable explanation of why it was rejected.
+	Reason string
+}
+
+func (e PatternError) Error() string {
+	if e.Reason == "" {
+		return "pattern " + e.Pattern + " is invalid"
+	}
+	return "pattern " + e.Pattern + ": " + e.Reason
+}
+
 // CategoryEntry is one row of the binary → category table.
 type CategoryEntry struct {
 	Binary    string

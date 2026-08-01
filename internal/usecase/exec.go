@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/LeandroLCD/sudoconsole/internal/domain"
 )
@@ -24,6 +25,11 @@ type ExecInput struct {
 	// Override bypasses a policy Block decision. The decision is still
 	// recorded in the audit log so the operator can see when and why.
 	Override bool
+
+	// OverrideReason is the audit-tag recorded on OverrideBy when
+	// Override is true. CLI passes the value of --policy-override.
+	// Empty string falls back to "--policy-override".
+	OverrideReason string
 
 	// CacheActive is true when the caller has already validated the
 	// cache. False triggers a silent refresh (sudo -v) before execute.
@@ -157,7 +163,7 @@ func (u *ExecUseCase) Execute(ctx context.Context, in ExecInput) (ExecOutput, er
 		Decision:   policyOut.Result.Decision,
 		Result:     policyOut.Result,
 		ExitCode:   res.ExitCode,
-		OverrideBy: boolToOverrideBy(policyOut.Override),
+		OverrideBy: overrideBy(policyOut.Override, in.OverrideReason),
 	})
 	return ExecOutput{
 		Result:    res,
@@ -178,9 +184,12 @@ func (u *ExecUseCase) evaluator() *EvaluatePolicyUseCase {
 	return NewEvaluatePolicyUseCase(u.Evaluator)
 }
 
-func boolToOverrideBy(b bool) string {
-	if b {
-		return "--policy-override"
+func overrideBy(active bool, reason string) string {
+	if !active {
+		return ""
 	}
-	return ""
+	if r := strings.TrimSpace(reason); r != "" {
+		return r
+	}
+	return "--policy-override"
 }

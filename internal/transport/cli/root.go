@@ -57,6 +57,7 @@ blocks remote-access and credential-exposure commands by default.`,
 	cmd.AddCommand(newAuditCmd(app))
 	cmd.AddCommand(newDetectCmd(app))
 	cmd.AddCommand(newInstallCmd(app))
+	cmd.AddCommand(newPolicyCmd(app))
 	return cmd
 }
 
