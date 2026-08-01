@@ -40,12 +40,20 @@ func writeTimestampRefreshed(username string) error {
 }
 
 // currentUsername returns the effective user running the process.
+//
+// Falls back to os.Getuid() when neither USER nor LOGNAME is set.
+// This handles minimal containers where neither env var is exported
+// by the entrypoint but the process still runs as a real user (e.g.
+// when USER is unset in `sudo -u user` because env_reset dropped it).
 func currentUsername() string {
 	if u := os.Getenv("USER"); u != "" {
 		return u
 	}
 	if u := os.Getenv("LOGNAME"); u != "" {
 		return u
+	}
+	if uid := os.Getuid(); uid > 0 {
+		return fmt.Sprintf("uid-%d", uid)
 	}
 	return ""
 }
