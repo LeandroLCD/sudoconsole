@@ -118,17 +118,23 @@ func run(t *testing.T, args []string, extraEnv []string) runResult {
 	return res
 }
 
-// runAuth primes the sudo cache as the current (NOPASSWD) user by
-// invoking `sudo -v` directly. Using the system `sudo` instead of
-// `sudoconsole auth` avoids the PTY dance and the --no-tty secret
-// dance on NOPASSWD users, which is timing-sensitive.
+// runAuth primes the sudo cache as the current (NOPASSWD) user.
+// Runs an actual sudo invocation (`sudo -n id`) so the timestamp
+// file is reliably created. `sudo -v` alone does not always
+// create the timestamp on NOPASSWD users, depending on the
+// distro's sudo defaults.
 func runAuth(t *testing.T) {
 	t.Helper()
-	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "-v")
+	cmd := exec.CommandContext(context.Background(), "sudo", "-n", "id")
 	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("sudo -v: %v", err)
+		t.Fatalf("sudo -n id: %v", err)
 	}
+	// Also touch -v so the timestamp is "fresh" (some sudo configs
+	// only update the timestamp on a sudo invocation, not on -v
+	// alone). The id call above usually suffices, but this is
+	// belt-and-braces for older distros.
+	_ = exec.Command("sudo", "-n", "-v").Run()
 }
 
 // runAuthAt primes the cache, optionally pointing the binary at a
