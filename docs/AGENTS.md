@@ -157,9 +157,26 @@ sudoconsole install --kind kilo
 # 5. force overwrite an existing integration
 sudoconsole install --force --kind claude
 
-# 6. clean up
+# 6. install with the audit policy mode (no enforcement)
+sudoconsole install --policy-mode audit --yes
+
+# 7. install wrappers into a non-default bin dir
+sudoconsole install --bin-dir ~/.local/bin --yes
+
+# 8. clean up
 sudoconsole uninstall
 ```
+
+## Flags
+
+| Flag | Applies to | Default | Purpose |
+|------|-----------|---------|---------|
+| `--kind <name>` | install, uninstall | (all detected) | Restrict the operation to one or more agent kinds. Repeatable. |
+| `--force` | install | `false` | Overwrite existing integration files (skips the "marker already present" guard). |
+| `--dry-run` | install, uninstall | `false` | Report what would change without touching the filesystem. Exit 0 even when no changes are planned. |
+| `--yes` | install, uninstall | `false` | Skip the interactive `Proceed? [y/N]` prompt. Auto-applied when stdin is not a TTY. |
+| `--bin-dir <path>` | install | `~/bin` (from config) | Override the wrapper binary directory for this invocation. |
+| `--policy-mode <m>` | install | (config value) | One-shot override of `policy.mode`: `blocklist`, `allowlist`, or `audit`. Useful for installing adapters in environments where the active policy would otherwise block the operation. |
 
 ## Adding a new adapter
 
