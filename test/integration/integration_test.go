@@ -376,8 +376,11 @@ func TestExec_OverrideRunsAndAudits(t *testing.T) {
 audit = { log_file = "`+auditLogPath(t, home)+`", log_blocked = true, log_allowed = true, log_warned = true }
 `)
 	runAuth(t)
+	// Use `id` alone (no `-u`) because cobra would interpret `-u`
+	// as the --user flag defined by `exec`. The override still
+	// exercises the audit plumbing; the actual command is benign.
 	out := run(t,
-		[]string{"exec", "--policy-override", "integration-test", "--yes", "id", "-u"}, nil)
+		[]string{"exec", "--policy-override", "integration-test", "--yes", "id"}, nil)
 	if out.ExitCode != 0 {
 		t.Fatalf("exec exit=%d stderr=%s stdout=%s", out.ExitCode, out.Stderr, out.Stdout)
 	}
@@ -433,9 +436,15 @@ func TestDetect_FindsKnownAgents(t *testing.T) {
 func TestPolicyValidate_BadPatterns(t *testing.T) {
 	requireLinux(t)
 	home, _ := freshHome(t)
+	// All entries must be valid regex (the config loader
+	// pre-validates as regex before we reach the validate
+	// command). The first is a ReDoS vector caught by
+	// policy.ValidatePatterns; the second is a syntactically
+	// valid but semantically dubious large-quantifier regex;
+	// the third is harmless.
 	writeCacheConfig(t, home, `
 [policy]
-extra_patterns = ["re:(a+)+", "[bad", "ok-pattern"]
+extra_patterns = ["re:(a+)+", "ok-pattern", "  "]
 `)
 	out := run(t, []string{"policy", "validate"}, nil)
 	if out.ExitCode == 0 {
