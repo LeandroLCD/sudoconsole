@@ -137,12 +137,10 @@ func runAuth(t *testing.T) {
 	// Verify the timestamp was actually created. If not, skip the
 	// caller (some containers do not expose /var/db/sudo/ts/
 	// correctly and we cannot prime the cache from inside).
-	if out, err := exec.Command("sudo", "-n", "-v").CombinedOutput(); err != nil {
-		// -v after the id call must succeed; if not the timestamp
-		// directory isn't writable and subsequent exec calls will
-		// always fail with cache miss. Treat the test as best-effort.
-		t.Skipf("sudo cache not primed in this environment (sudo -n -v: %v, out=%s); skipping downstream tests",
-			err, string(out))
+	tsDir := "/var/db/sudo/ts"
+	if entries, err := os.ReadDir(tsDir); err == nil && len(entries) == 0 {
+		t.Skipf("sudo cache directory %s is empty after 'sudo -n id'; cache cannot be primed (entries=%v, err=%v, USER=%q, HOME=%q)",
+			tsDir, entries, err, os.Getenv("USER"), os.Getenv("HOME"))
 	}
 }
 
