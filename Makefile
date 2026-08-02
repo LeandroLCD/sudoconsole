@@ -84,11 +84,7 @@ docgen: ## Regenerate the manpage and CLI reference
 	go run ./cmd/docgen man ./manpages
 	go run ./cmd/docgen md  ./docs/cmd
 
-pagesite: ## Render the GitHub Pages site into ./site-publish/
-	@mkdir -p site-publish
-	go run ./cmd/pagedocgen --src . --out ./site-publish
-
-.PHONY: release-dry release-check docgen pagesite
+.PHONY: release-dry release-check docgen
 
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist/ $(COVER) coverage.html
