@@ -18,6 +18,14 @@
 
 ## Quickstart
 
+The fastest way to install is the one-liner served by GitHub Pages (auto-detects your platform, downloads the matching binary, verifies the cosign signature, and drops it on your `PATH`):
+
+```bash
+curl -fsSL https://LeandroLCD.github.io/sudoconsole/install.sh | sh
+```
+
+From a working tree:
+
 ```bash
 git clone https://github.com/LeandroLCD/sudoconsole
 cd sudoconsole
@@ -43,13 +51,16 @@ make build
 ./bin/sudoconsole install
 ```
 
-See [`examples/README.md`](examples/README.md) for more recipes.
+See [`examples/README.md`](examples/README.md) for more recipes. The installer flags are documented in [`scripts/install.sh`](scripts/install.sh).
 
 ## Installation
 
 Pick the channel that matches your platform.
 
 ```bash
+# (Recommended) One-liner — auto-detects platform + verifies signature
+curl -fsSL https://LeandroLCD.github.io/sudoconsole/install.sh | sh
+
 # macOS / Linux — Homebrew tap
 brew install LeandroLCD/tap/sudoconsole
 
@@ -68,7 +79,8 @@ sudo install sudoconsole /usr/local/bin/
 make build
 ```
 
-See [`docs/RELEASE.md`](docs/RELEASE.md) for the full release process, including signing/verification with cosign.
+The [`scripts/install.sh`](scripts/install.sh) installer (served via GitHub Pages at
+<https://LeandroLCD.github.io/sudoconsole/install.sh>) handles platform detection, downloads from the latest release, optionally pins to a specific tag (`--version`), and verifies the cosign signature. See [`docs/RELEASE.md`](docs/RELEASE.md) for the full release process.
 
 ## Documentation
 

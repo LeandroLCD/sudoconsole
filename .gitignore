@@ -50,3 +50,5 @@ config.local.toml
 *.zip
 *.deb
 *.rpm
+# GitHub Pages rendered output
+/site-publish/
