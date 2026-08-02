@@ -1,0 +1,54 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Coverage profiles
+*.coverprofile
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local config overrides
+config.local.toml
+
+# Vendoring (we use Go modules)
+/vendor/
+
+# Goreleaser local
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+# GitHub Pages rendered output (legacy — Pages requires Pro)
+/site-publish/

@@ -1,0 +1,168 @@
+# .goreleaser configuration for sudoconsole.
+#
+# Usage:
+#   goreleaser release --snapshot --clean    # local dry run (artifacts in ./dist)
+#   goreleaser release --clean              # real release (requires a v* tag)
+#
+# The release pipeline builds for the four supported GOOS/GOARCH
+# pairs, signs binaries with GPG, generates .deb / .rpm packages
+# via nfpm, and updates the Homebrew tap at LeandroLCD/homebrew-tap.
+project_name: sudoconsole
+
+# Schema URL pinned to the major version we test against.
+version: 2
+
+before:
+  hooks:
+    # Run `go mod tidy` so the released binaries always build from a
+    # clean module state. `go mod download` first so the network is
+    # exercised before we produce any artefacts.
+    - go mod download
+    - go mod tidy
+
+builds:
+  - id: sudoconsole
+    main: ./cmd/sudoconsole
+    binary: sudoconsole
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # We do not yet ship Windows binaries; skip the matrix entries.
+      - goos: windows
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+      - -buildmode=pie
+    ldflags:
+      # Static version stamping. The values are injected by the CI
+      # workflow; when running locally goreleaser substitutes its
+      # own defaults.
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.buildDate={{.Date}}
+
+archives:
+  - id: default
+    ids:
+      - sudoconsole
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    formats:
+      - tar.gz
+    files:
+      - LICENSE*
+      - README.md
+      - CHANGELOG.md
+      - scripts/install.sh
+    # Strip the leading path component when archiving so the user
+    # finds the binary at the archive root, not under sudoconsole/.
+    wrap_in_directory: false
+
+nfpms:
+  - id: packages
+    package_name: sudoconsole
+    ids:
+      - sudoconsole
+    formats:
+      - deb
+      - rpm
+    maintainer: LeandroLCD <leandrolcd@example.com>
+    description: |
+      Secure sudo wrapper for CLI agents — captures the sudo password
+      on a TTY, caches it via sudo's native timestamp, and evaluates
+      a configurable policy before executing any command.
+    license: MIT
+    section: utils
+    priority: optional
+    vendor: LeandroLCD
+    homepage: https://github.com/LeandroLCD/sudoconsole
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/sudoconsole/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/sudoconsole/LICENSE
+    scripts:
+      postinstall: ./scripts/nfpm/postinstall.sh
+    dependencies:
+      - sudo
+
+brews:
+  - name: sudoconsole
+    repository:
+      owner: LeandroLCD
+      name: homebrew-tap
+      branch: main
+    commit_author:
+      name: LeandroLCD
+      email: leandrolcd@example.com
+    download_strategy: CurlDownloadStrategy
+    homepage: https://github.com/LeandroLCD/sudoconsole
+    description: Secure sudo wrapper for CLI agents
+    license: MIT
+    test: |
+      system "#{bin}/sudoconsole", "version"
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+signs:
+  - cmd: cosign
+    # cosign is preferred over GPG for keyless signing in CI; the
+    # GPG step below is kept as a fallback for local releases.
+    artifacts: checksum
+    signature: "${artifact}.sig"
+    output: "${signature}"
+
+# changelog is generated from conventional commits since the last tag.
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+  groups:
+    - title: Features
+      regexp: "^feat"
+    - title: Bug fixes
+      regexp: "^fix"
+    - title: Others
+      regexp: "^.*"
+
+release:
+  github:
+    owner: LeandroLCD
+    name: sudoconsole
+  draft: true
+  prerelease: auto
+  name_template: "{{ .ProjectName }} v{{ .Version }}"
+  header: |
+    ## sudoconsole {{ .Tag }}
+  footer: |
+    ## Verifying the binaries
+    Signatures are produced with [cosign](https://docs.sigstore.dev/cosign/).
+    Verify with:
+    ```
+    cosign verify-blob \
+      --bundle sudoconsole_X.Y.Z_SHA256SUMS.txt.sig \
+      --certificate-identity-regexp 'https://github.com/LeandroLCD/sudoconsole' \
+      --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+      sudoconsole_X.Y.Z_SHA256SUMS.txt
+    ```
+
+# Docker images are out of scope for M13; M14 may add them.
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

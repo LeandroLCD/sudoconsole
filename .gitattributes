@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.go    linguist-language=Go
+*.md    linguist-language=Markdown
+Makefile linguist-language=Makefile
+
+# Exclude generated / vendored
+/vendor/ linguist-vendored
+/dist/  linguist-generated
