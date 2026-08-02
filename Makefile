@@ -79,7 +79,12 @@ release-check: ## Validate goreleaser config only (no build)
 	# Treat the warning as informational.
 	goreleaser check || true
 
-.PHONY: release-dry release-check
+docgen: ## Regenerate the manpage and CLI reference
+	@mkdir -p manpages docs/cmd
+	go run ./cmd/docgen man ./manpages
+	go run ./cmd/docgen md  ./docs/cmd
+
+.PHONY: release-dry release-check docgen
 
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist/ $(COVER) coverage.html
