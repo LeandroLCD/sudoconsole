@@ -1,5 +1,0 @@
-# Invalid config fixture: cache.timeout_seconds below the documented
-# [60, 3600] range. The loader should return ErrConfigInvalid.
-[cache]
-timeout_seconds = 5
-refresh_before_seconds = 1
