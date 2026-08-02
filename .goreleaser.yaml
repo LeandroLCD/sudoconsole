@@ -63,6 +63,7 @@ archives:
       - LICENSE*
       - README.md
       - CHANGELOG.md
+      - scripts/install.sh
     # Strip the leading path component when archiving so the user
     # finds the binary at the archive root, not under sudoconsole/.
     wrap_in_directory: false

@@ -16,71 +16,121 @@
 - 🔌 **Adapter-friendly.** `sudoconsole install` registers with 7 CLI agents; add your own via the documented protocol.
 - 🚀 **Single static binary.** 4 GOOS/GOARCH pairs shipped via goreleaser + Homebrew tap + .deb/.rpm.
 
-## Quickstart
+## Installation
 
-The fastest way to install is the one-liner served by GitHub Pages (auto-detects your platform, downloads the matching binary, verifies the cosign signature, and drops it on your `PATH`):
+Pick the path that matches your setup. The fastest is a single `curl | sh`; the most reproducible is a pinned release.
+
+### One-liner (latest from the default branch)
+
+The install script lives at [`scripts/install.sh`](scripts/install.sh). It detects your OS/arch, downloads the matching tarball, verifies the cosign signature + SHA-256, and installs to `/usr/local/bin` (or `~/.local/bin` when running without sudo). All flags are documented in the script itself (`-h`).
 
 ```bash
-curl -fsSL https://LeandroLCD.github.io/sudoconsole/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/main/scripts/install.sh | sh
 ```
 
-From a working tree:
+This pulls the script directly from the repo — no GitHub Pages required. Use `develop` instead of `main` to install the bleeding edge:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/develop/scripts/install.sh | sh
+```
+
+Useful flags:
+
+| Flag | Meaning |
+|------|---------|
+| `--version <tag>` | Pin to a specific release tag (default: `latest`). |
+| `--to <dir>` | Install to `<dir>` instead of `/usr/local/bin` or `~/.local/bin`. |
+| `--no-verify` | Skip the cosign signature check (not recommended). |
+| `--no-modify-path` | Suppress the PATH hint on user-mode installs. |
+| `-h`, `--help` | Show every flag + environment variable. |
+
+Environment variables: `SUDOCONSOLE_VERSION`, `SUDOCONSOLE_INSTALL_DIR`, `SUDOCONSOLE_NO_VERIFY=1`, `SUDOCONSOLE_NO_MODIFY_PATH=1`.
+
+Exit codes: `0` success · `1` generic · `2` unsupported platform · `3` download failed · `4` signature failed · `5` not writable.
+
+### One-liner (pinned to a release tag)
+
+After the maintainer publishes a release (`v0.3.0`, `v1.0.0`, …), the same script is available from that tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/v0.3.0/scripts/install.sh \
+  | sh -s -- --version v0.3.0
+```
+
+The script also lives inside every release tarball (under `scripts/install.sh`), so you can install offline:
+
+```bash
+tar -xzf sudoconsole_0.3.0_linux_amd64.tar.gz --wildcards '*/scripts/install.sh' \
+  | sudo bash -s -- --version v0.3.0 --to /usr/local/bin
+```
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install LeandroLCD/tap/sudoconsole
+```
+
+The formula is published from `goreleaser` on every release; see [`docs/RELEASE.md`](docs/RELEASE.md) for tap setup.
+
+### Debian / Ubuntu
+
+```bash
+curl -LO https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_linux_amd64.deb
+sudo dpkg -i sudoconsole_X.Y.Z_linux_amd64.deb
+```
+
+### Fedora / RHEL
+
+```bash
+sudo dnf install https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_linux_amd64.rpm
+```
+
+### Static binary
+
+For every supported OS/arch pair (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`):
+
+```bash
+curl -L https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_$(uname -s)_$(uname -m).tar.gz | tar -xz
+sudo install sudoconsole /usr/local/bin/
+```
+
+### Build from source
+
+Requires Go 1.25+:
 
 ```bash
 git clone https://github.com/LeandroLCD/sudoconsole
 cd sudoconsole
-make build
+make build           # binary in ./bin/sudoconsole
+make install         # or install to $GOBIN
+```
 
+The full release pipeline (signing, packaging, brew tap) is in [`docs/RELEASE.md`](docs/RELEASE.md).
+
+## Quickstart
+
+```bash
 # prime the sudo cache — prompts for the password on a TTY, never echoed
-./bin/sudoconsole auth
+sudoconsole auth
 
 # inspect cache status
-./bin/sudoconsole check
-./bin/sudoconsole --format json check
+sudoconsole check
+sudoconsole --format json check
 
 # run a privileged command under the policy
-./bin/sudoconsole exec apt update
+sudoconsole exec apt update
 
 # blocked by default
-./bin/sudoconsole exec ssh user@host      # exit 64
+sudoconsole exec ssh user@host      # exit 64
 
 # override once, with audit + interactive confirm
-./bin/sudoconsole exec --policy-override "debugging" --yes ssh user@host
+sudoconsole exec --policy-override "debugging" --yes ssh user@host
 
 # install adapters for every detected CLI agent
-./bin/sudoconsole install
+sudoconsole install
 ```
 
 See [`examples/README.md`](examples/README.md) for more recipes. The installer flags are documented in [`scripts/install.sh`](scripts/install.sh).
-
-## Installation
-
-Pick the channel that matches your platform.
-
-```bash
-# (Recommended) One-liner — auto-detects platform + verifies signature
-curl -fsSL https://LeandroLCD.github.io/sudoconsole/install.sh | sh
-
-# macOS / Linux — Homebrew tap
-brew install LeandroLCD/tap/sudoconsole
-
-# Debian / Ubuntu
-curl -LO https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_linux_amd64.deb
-sudo dpkg -i sudoconsole_X.Y.Z_linux_amd64.deb
-
-# Fedora / RHEL
-sudo dnf install https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_linux_amd64.rpm
-
-# Static binary — every supported OS
-curl -L https://github.com/LeandroLCD/sudoconsole/releases/latest/download/sudoconsole_X.Y.Z_$(uname -s)_$(uname -m).tar.gz | tar -xz
-sudo install sudoconsole /usr/local/bin/
-
-# Build from source (requires Go 1.25+)
-make build
-```
-
-The [`scripts/install.sh`](scripts/install.sh) installer (served via GitHub Pages at
-<https://LeandroLCD.github.io/sudoconsole/install.sh>) handles platform detection, downloads from the latest release, optionally pins to a specific tag (`--version`), and verifies the cosign signature. See [`docs/RELEASE.md`](docs/RELEASE.md) for the full release process.
 
 ## Documentation
 
