@@ -92,7 +92,14 @@ detect_platform() {
 	echo "$os $arch"
 }
 
-read -r OS ARCH < <(detect_platform)
+# Split "os arch" into the two globals. We use awk rather than
+# `read OS ARCH < <(detect_platform)` because process substitution
+# (`<()`) is a bashism that dash (Debian/Ubuntu's /bin/sh) does
+# not understand — the installer is frequently piped into `sh`,
+# bypassing the `#!/usr/bin/env bash` shebang.
+DETECTED="$(detect_platform)"
+OS="$(echo "$DETECTED" | awk '{print $1}')"
+ARCH="$(echo "$DETECTED" | awk '{print $2}')"
 log "detected platform: ${OS}/${ARCH}"
 
 # ---------------------------------------------------------------------------
