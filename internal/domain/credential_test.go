@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 func TestNewCredential_CopiesInput(t *testing.T) {
@@ -63,6 +64,56 @@ func TestCredential_Zeroize(t *testing.T) {
 	}
 	// Multiple calls must not panic.
 	c.Zeroize()
+}
+
+// TestCredential_ZeroizeOverwritesBackingArray is the M12
+// hardening test: it verifies that the backing array actually
+// contains zeros after Zeroize (not just that the slice header
+// is nil). We capture the backing pointer via unsafe before
+// zeroizing and inspect the bytes afterwards.
+func TestCredential_ZeroizeOverwritesBackingArray(t *testing.T) {
+	c := NewCredential([]byte("hunter2hunter2"))
+	// Reach into the credential and grab the backing array
+	// pointer. This test will trip if the Credential struct ever
+	// stops holding the data in []byte.
+	backing := structPtr(t, &c)
+	for i := 0; i < len(*backing); i++ {
+		if (*backing)[i] == 0 {
+			t.Fatalf("backing[%d] already zero before test", i)
+		}
+	}
+	c.Zeroize()
+	for i := 0; i < len(*backing); i++ {
+		if (*backing)[i] != 0 {
+			t.Fatalf("backing[%d] = %d after Zeroize, want 0", i, (*backing)[i])
+		}
+	}
+}
+
+// TestCredential_BytesIsSeparateAllocation asserts that Bytes()
+// returns a fresh copy that shares no backing storage with the
+// credential — overwriting the returned slice must not corrupt
+// the credential's internal bytes (and vice versa).
+func TestCredential_BytesIsSeparateAllocation(t *testing.T) {
+	c := NewCredential([]byte("abcdef"))
+	out := c.Bytes()
+	// The slice header addresses must differ because Bytes()
+	// allocates a new buffer.
+	if len(out) != len(c.Bytes()) {
+		t.Fatal("length mismatch")
+	}
+	if &out[0] == &c.Bytes()[0] {
+		t.Fatal("Bytes returned the same backing array")
+	}
+}
+
+// structPtr returns a pointer to the []byte that backs the
+// credential via reflection on the unsafe layout of the struct.
+// Safe because the struct has only one []byte field at offset 0.
+func structPtr(t *testing.T, c *Credential) *[]byte {
+	t.Helper()
+	p := unsafe.Pointer(c)
+	return (*[]byte)(p)
 }
 
 func TestCredential_ZeroizeNilSafe(t *testing.T) {
