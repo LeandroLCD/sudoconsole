@@ -46,8 +46,8 @@ make build
 |---------|------------|--------|
 | v0.1.0  | M0–M5   (bootstrap, domain, policy, infra, config, CLI) | ✅ shipped |
 | v0.2.0  | M6–M10  (audit, agent detector/adapters, install, policy CLI) | ✅ shipped |
-| v0.3.0  | M11–M12 (integration tests, hardening) | 🚧 in progress |
-| v1.0.0  | M13–M14 (release pipeline, docs) | planned |
+| v0.3.0  | M11–M12 (integration tests, hardening) | ✅ shipped |
+| v1.0.0  | M13–M14 (release pipeline, docs) | 🚧 in progress |
 
 ## Integration tests
 
@@ -59,6 +59,18 @@ make test-integration   # runs the suite locally; requires sudo + docker
 ```
 
 The CI workflow at [`.github/workflows/integration.yml`](.github/workflows/integration.yml) runs the full matrix on every PR.
+
+## Releases
+
+Tagged releases (`v0.X.Y`) trigger [`.github/workflows/release.yml`](.github/workflows/release.yml), which uses [goreleaser](https://goreleaser.com) to produce:
+
+- `tar.gz` archives for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`;
+- `.deb` and `.rpm` packages via nfpm;
+- a Homebrew formula at `LeandroLCD/homebrew-tap`;
+- a draft GitHub release with auto-generated changelog;
+- cosign-signed SHA-256 checksums.
+
+See [`docs/RELEASE.md`](docs/RELEASE.md) for the full procedure (tagging, signing, Homebrew tap setup, dry-run via `make release-dry`).
 
 ## Architecture
 

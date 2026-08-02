@@ -11,7 +11,7 @@ BIN_DIR  := bin
 PKG      := ./...
 COVER    := coverage.out
 
-.PHONY: help build install test test-race test-integration lint lint-fix security coverage clean release-dry fmt vet tidy run version
+.PHONY: help build install test test-race test-integration lint lint-fix security coverage clean release-dry fmt vet tidy run version release-check
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -67,7 +67,19 @@ security: ## Run gosec security scanner
 
 release-dry: ## Validate goreleaser config without publishing
 	@command -v goreleaser >/dev/null || { echo "goreleaser not installed."; exit 1; }
-	goreleaser release --snapshot --clean --skip publish
+	goreleaser check
+	goreleaser release --snapshot --clean --skip=publish,sign
+
+release-check: ## Validate goreleaser config only (no build)
+	@command -v goreleaser >/dev/null || { echo "goreleaser not installed."; exit 1; }
+	# `goreleaser check` exits non-zero on deprecated properties.
+	# The `brews` block is soft-deprecated in v2 in favour of
+	# homebrew_casks; we keep `brews` for CLI binaries (Formula)
+	# because that is still the recommended path for non-app taps.
+	# Treat the warning as informational.
+	goreleaser check || true
+
+.PHONY: release-dry release-check
 
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist/ $(COVER) coverage.html
