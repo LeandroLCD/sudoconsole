@@ -18,7 +18,7 @@
 #   4  signature verification failed
 #   5  install path not writable and no sudo
 #
-set -euo pipefail
+set -eu
 
 REPO="LeandroLCD/sudoconsole"
 DEFAULT_VERSION="latest"
