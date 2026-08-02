@@ -25,12 +25,16 @@ Pick the path that matches your setup. The fastest is a single `curl | sh`; the 
 The install script lives at [`scripts/install.sh`](scripts/install.sh). It detects your OS/arch, downloads the matching tarball, verifies the cosign signature + SHA-256, and installs to `/usr/local/bin` (or `~/.local/bin` when running without sudo). All flags are documented in the script itself (`-h`).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/main/scripts/install.sh | sh
+curl -fsSL https://leandrolcd.github.io/sudoconsole/install.sh | sh
 ```
 
-This pulls the script directly from the repo — no GitHub Pages required. Use `develop` instead of `main` to install the bleeding edge:
+That URL is hosted via GitHub Pages (sourced from the [`gh-pages` branch](https://github.com/LeandroLCD/sudoconsole/tree/gh-pages)). Two fallback URLs that work without GitHub Pages:
 
 ```bash
+# Latest from the default branch (raw.githubusercontent.com):
+curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/main/scripts/install.sh | sh
+
+# Bleeding edge from the development branch:
 curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/develop/scripts/install.sh | sh
 ```
 
@@ -50,9 +54,14 @@ Exit codes: `0` success · `1` generic · `2` unsupported platform · `3` downlo
 
 ### One-liner (pinned to a release tag)
 
-After the maintainer publishes a release (`v0.3.0`, `v1.0.0`, …), the same script is available from that tag:
+After the maintainer publishes a release (`v0.3.0`, `v1.0.0`, …), the same script is available from that tag — and the canonical GitHub Pages URL serves the release-pinned copy too:
 
 ```bash
+# Pinned to a release via GitHub Pages:
+curl -fsSL https://leandrolcd.github.io/sudoconsole/install.sh \
+  | sh -s -- --version v0.3.0
+
+# Or directly from the tag via raw.githubusercontent.com:
 curl -fsSL https://raw.githubusercontent.com/LeandroLCD/sudoconsole/v0.3.0/scripts/install.sh \
   | sh -s -- --version v0.3.0
 ```
